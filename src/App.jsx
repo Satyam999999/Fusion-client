@@ -15,6 +15,7 @@ import InactivityHandler from "./helper/inactivityhandler";
 import Examination from "./Modules/Examination/examination";
 import Database from "./Modules/Database/database";
 import ProgrammeCurriculumRoutes from "./Modules/Program_curriculum/programmCurriculum";
+import RSPCRoutes from "./Modules/RSPC";
 import NotFoundPage from "./components/NotFoundPage";
 
 const theme = createTheme({
@@ -76,6 +77,14 @@ export default function App() {
             <div>
               <ProgrammeCurriculumRoutes />
             </div>
+          }
+        />
+        <Route
+          path="/research/*"
+          element={
+            <Layout>
+              <RSPCRoutes />
+            </Layout>
           }
         />
         <Route path="/accounts/login" element={<LoginPage />} />

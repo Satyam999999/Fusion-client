@@ -1,0 +1,11 @@
+.formContainer {
+  max-width: 85vw;
+  margin: 3% auto;
+  padding: 3% 5%;
+  border-radius: 18px;
+  background-color: #ffffff;
+  border-left: 0.6rem solid #15ABFF;
+}
+.formTitle { text-align: center; margin-bottom: 20px; color: #15ABFF; }
+.fieldLabel { margin-bottom: 8px; font-weight: 600; font-size: 1rem; }
+.submitButtonContainer { display: flex; justify-content: center; margin-top: 3%; }

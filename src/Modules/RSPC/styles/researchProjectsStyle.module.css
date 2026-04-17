@@ -1,0 +1,14 @@
+.fusionText { font-size: 1rem; font-weight: 600; }
+.fusionActiveRecentTab {
+  background-color: #15abff13;
+  color: #15abff;
+  font-weight: 800;
+  border-radius: 4px;
+}
+.fusionTabsContainer {
+  flex-shrink: 1;
+  max-width: 80vw;
+  overflow-x: auto;
+  -ms-overflow-style: none;
+}
+.fusionTabsContainer::-webkit-scrollbar { display: none; }
