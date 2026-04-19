@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { User, SignOut, Bell, UserSwitch } from "@phosphor-icons/react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import axios from "axios";
 import {
@@ -19,10 +19,16 @@ import {
 // import { useQueryClient } from "@tanstack/react-query";
 import PropTypes from "prop-types";
 import { notifications } from "@mantine/notifications";
-import { setRole, setCurrentAccessibleModules } from "../redux/userslice";
+import {
+  setRole,
+  setCurrentAccessibleModules,
+  setRspcAllowedRoles,
+  setRspcRole,
+} from "../redux/userslice";
 import classes from "../Modules/Dashboard/Dashboard.module.css";
 import avatarImage from "../assets/avatar.png";
 import { setPfNo } from "../redux/pfNoSlice";
+import { governanceMeRoute } from "../routes/RSPCRoutes/index";
 
 import { logoutRoute, updateRoleRoute } from "../routes/dashboardRoutes";
 
@@ -31,11 +37,73 @@ function Header({ opened, toggleSidebar }) {
   const username = useSelector((state) => state.user.username);
   const roles = useSelector((state) => state.user.roles);
   const role = useSelector((state) => state.user.role);
+  const rspcRole = useSelector((state) => state.user.rspcRole);
+  const rspcAllowedRoles = useSelector((state) => state.user.rspcAllowedRoles);
   const navigate = useNavigate();
+  const location = useLocation();
   const dispatch = useDispatch();
   // const queryclient = useQueryClient();
 
+  const isResearchPage = location.pathname.startsWith("/research");
+
+  const rspcRoleOptions = useMemo(
+    () => [
+      { value: "FACULTY", label: "Faculty" },
+      { value: "DEPARTMENT_HEAD", label: "Department Head" },
+      { value: "RSPC_ADMIN", label: "RSPC Admin" },
+      { value: "DEAN_RSPC", label: "Dean-RSPC" },
+      { value: "DIRECTOR", label: "Director" },
+    ],
+    [],
+  );
+
+  useEffect(() => {
+    if (!isResearchPage) return;
+    const token = localStorage.getItem("authToken");
+    if (!token) return;
+
+    const fetchRspcRoles = async () => {
+      try {
+        const response = await axios.get(governanceMeRoute, {
+          headers: { Authorization: `Token ${token}` },
+        });
+        const allowed = response?.data?.user_roles || [];
+        dispatch(setRspcAllowedRoles(allowed));
+
+        if (!rspcRole && allowed.length > 0) {
+          dispatch(setRspcRole(allowed[0]));
+        }
+      } catch (error) {
+        console.error("Failed to fetch RSPC roles:", error);
+      }
+    };
+
+    fetchRspcRoles();
+  }, [dispatch, isResearchPage, rspcRole]);
+
   const handleRoleChange = async (newRole) => {
+    if (!newRole) return;
+
+    if (isResearchPage) {
+      if (rspcAllowedRoles.length > 0 && !rspcAllowedRoles.includes(newRole)) {
+        notifications.show({
+          title: "Unauthorized Role",
+          message: "You are not authorized to switch to this RSPC role.",
+          color: "red",
+        });
+        return;
+      }
+
+      dispatch(setRspcRole(newRole));
+      notifications.show({
+        title: "Role Updated",
+        message: `RSPC role changed to ${rspcRoleOptions.find((r) => r.value === newRole)?.label || newRole}`,
+        color: "green",
+      });
+      navigate("/research");
+      return;
+    }
+
     const token = localStorage.getItem("authToken");
     try {
       const response = await axios.patch(
@@ -65,7 +133,7 @@ function Header({ opened, toggleSidebar }) {
       console.log(response.data.message);
       dispatch(setRole(newRole));
       dispatch(setCurrentAccessibleModules());
-      navigate('/dashboard')
+      navigate("/dashboard");
     } catch (error) {
       console.error("Error updating last selected role:", error.response.data);
     }
@@ -136,8 +204,17 @@ function Header({ opened, toggleSidebar }) {
             }}
             variant="default"
             rightSection={<UserSwitch size="24px" />}
-            data={roles}
-            value={role}
+            data={
+              isResearchPage
+                ? rspcRoleOptions.map((opt) => ({
+                    ...opt,
+                    disabled:
+                      rspcAllowedRoles.length > 0 &&
+                      !rspcAllowedRoles.includes(opt.value),
+                  }))
+                : roles
+            }
+            value={isResearchPage ? rspcRole : role}
             onChange={handleRoleChange}
             placeholder="Role"
           />

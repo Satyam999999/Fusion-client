@@ -25,3 +25,13 @@ dist-ssr
 
 #Package-lock.json
 package-lock.json
+
+# Local Python/Node helper environments and temp artifacts
+.venv/
+.venv*/
+venv/
+venv*/
+__pycache__/
+*.pyc
+reqs_filtered.txt
+*_filtered.txt

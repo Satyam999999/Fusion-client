@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Button,
   Center,
@@ -8,8 +9,21 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
+import { host } from "../routes/globalRoutes";
 
 function ForgotPassword() {
+  const [identifier, setIdentifier] = useState("");
+
+  const handleReset = (event) => {
+    event.preventDefault();
+    const baseUrl = `${host}/password-reset/`;
+    const trimmed = identifier.trim();
+    const resetUrl = trimmed
+      ? `${baseUrl}?email=${encodeURIComponent(trimmed)}`
+      : baseUrl;
+    window.location.href = resetUrl;
+  };
+
   return (
     <Center w="100%">
       <Container w={420} my={100}>
@@ -28,15 +42,19 @@ function ForgotPassword() {
             will send you an e-mail allowing you to reset it.
           </Text>
           <Divider my="md" />
-          <TextInput
-            label="Username/Email"
-            type="email"
-            placeholder="username or email"
-            required
-          />
-          <Button fullWidth mt="xl" bg="#15ABFF">
-            Reset Password
-          </Button>
+          <form onSubmit={handleReset}>
+            <TextInput
+              label="Username/Email"
+              type="email"
+              placeholder="username or email"
+              value={identifier}
+              onChange={(event) => setIdentifier(event.currentTarget.value)}
+              required
+            />
+            <Button fullWidth mt="xl" bg="#15ABFF" type="submit">
+              Reset Password
+            </Button>
+          </form>
           <Divider my="md" />
           <Text size="sm">
             Please contact CC admin if you have any trouble resetting your

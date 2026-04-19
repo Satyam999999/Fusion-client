@@ -9,6 +9,8 @@ const userSlice = createSlice({
     role: "Guest-User",
     accessibleModules: {}, // Format---> {role: {module: true}}
     currentAccessibleModules: {}, // Format---> {module: true}
+    rspcRole: null,
+    rspcAllowedRoles: [],
   },
   reducers: {
     setUserName: (state, action) => {
@@ -30,6 +32,12 @@ const userSlice = createSlice({
       state.currentAccessibleModules =
         state.accessibleModules[state.role] || {};
     },
+    setRspcRole: (state, action) => {
+      state.rspcRole = action.payload;
+    },
+    setRspcAllowedRoles: (state, action) => {
+      state.rspcAllowedRoles = action.payload || [];
+    },
     clearUserName: (state) => {
       state.username = "User";
     },
@@ -46,6 +54,8 @@ export const {
   setRole,
   setAccessibleModules,
   setCurrentAccessibleModules,
+  setRspcRole,
+  setRspcAllowedRoles,
   clearUserName,
   clearRoles,
 } = userSlice.actions;

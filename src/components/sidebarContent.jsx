@@ -39,9 +39,14 @@ import { useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import IIITLOGO from "../assets/IIITJ_logo.webp";
 import { setCurrentModule } from "../redux/moduleslice";
+import { useRSPCRole } from "../Modules/RSPC/hooks/useRSPCRole";
 
 function SidebarContent({ isCollapsed, toggleSidebar }) {
   const role = useSelector((state) => state.user.role);
+  const { visibleRoutes } = useRSPCRole();
+  const MODULE_KEY_ALIASES = {
+    rspc: ["research_procedures", "research"],
+  };
 
   const Modules = [
     {
@@ -123,6 +128,66 @@ function SidebarContent({ isCollapsed, toggleSidebar }) {
       url: "/research",
     },
     {
+      label: "RSPC Forms",
+      id: "rspc",
+      icon: <ResearchIcon size={18} />,
+      url: "/research/forms",
+    },
+    {
+      label: "RSPC Publications",
+      id: "rspc",
+      icon: <ResearchIcon size={18} />,
+      url: "/research/publications",
+    },
+    {
+      label: "RSPC Patents",
+      id: "rspc",
+      icon: <ResearchIcon size={18} />,
+      url: "/research/patents",
+    },
+    {
+      label: "RSPC Scholars",
+      id: "rspc",
+      icon: <ResearchIcon size={18} />,
+      url: "/research/scholars",
+    },
+    {
+      label: "RSPC Consultancy",
+      id: "rspc",
+      icon: <ResearchIcon size={18} />,
+      url: "/research/consultancy",
+    },
+    {
+      label: "RSPC Workflow",
+      id: "rspc",
+      icon: <ResearchIcon size={18} />,
+      url: "/research/workflow-tools",
+    },
+    {
+      label: "RSPC Staff Recruitment",
+      id: "rspc",
+      icon: <ResearchIcon size={18} />,
+      url: "/staff/recruitment",
+    },
+    {
+      label: "RSPC Staff Applications",
+      id: "rspc",
+      icon: <ResearchIcon size={18} />,
+      url: "/staff/applications",
+    },
+    {
+      label: "RSPC Staff Appointments",
+      id: "rspc",
+      icon: <ResearchIcon size={18} />,
+      url: "/staff/appointments",
+    },
+    {
+      label: "RSPC Governance",
+      id: "rspc",
+      icon: <ResearchIcon size={18} />,
+      url: "/governance",
+    },
+    {
       label: "Purchase and Store",
       id: "purchase_and_store",
       icon: <StoreIcon size={18} />,
@@ -140,7 +205,7 @@ function SidebarContent({ isCollapsed, toggleSidebar }) {
       icon: <ExamIcon size={18} />,
       url: "/examination",
     },
-        {
+    {
       label: "Database",
       id: "database",
       icon: <DatabaseIcon size={18} />,
@@ -193,11 +258,34 @@ function SidebarContent({ isCollapsed, toggleSidebar }) {
   const navigate = useNavigate();
 
   useEffect(() => {
+    const normalizedAccessibleModules = Object.entries(
+      accessibleModules || {},
+    ).reduce((acc, [key, value]) => {
+      acc[String(key).toLowerCase()] = Boolean(value);
+      return acc;
+    }, {});
+
+    const hasModuleAccess = (moduleId) => {
+      if (moduleId === "home") return true;
+      if (String(moduleId).toLowerCase() === "rspc") return true;
+      const moduleKey = String(moduleId).toLowerCase();
+      if (normalizedAccessibleModules[moduleKey]) return true;
+      const aliases = (MODULE_KEY_ALIASES[moduleKey] || []).map((alias) =>
+        String(alias).toLowerCase(),
+      );
+      return aliases.some((alias) => normalizedAccessibleModules[alias]);
+    };
+
+    const isRspcRouteAllowed = (module) => {
+      if (String(module.id).toLowerCase() !== "rspc") return true;
+      return visibleRoutes.includes(module.url);
+    };
+
     const filterModules = Modules.filter(
-      (module) => accessibleModules[module.id] || module.id === "home",
+      (module) => hasModuleAccess(module.id) && isRspcRouteAllowed(module),
     );
     setFilteredModules(filterModules);
-  }, [accessibleModules]);
+  }, [accessibleModules, visibleRoutes]);
 
   const handleModuleClick = (item) => {
     setSelected(item.label);

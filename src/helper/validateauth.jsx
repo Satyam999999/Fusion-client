@@ -10,6 +10,7 @@ import {
   setRole,
   setAccessibleModules,
   setCurrentAccessibleModules,
+  setRspcRole,
   clearUserName,
   clearRoles,
 } from "../redux/userslice";
@@ -54,6 +55,27 @@ function ValidateAuth() {
 
       const selectedRole = last_selected_role || designation_info[0] || null;
       if (selectedRole) dispatch(setRole(selectedRole));
+
+      const normalizedRole = String(selectedRole || "").toLowerCase();
+      let defaultRspcRole = "FACULTY";
+      if (
+        normalizedRole.includes("hod") ||
+        normalizedRole === "department_head"
+      )
+        defaultRspcRole = "DEPARTMENT_HEAD";
+      else if (
+        normalizedRole === "rspc_admin" ||
+        normalizedRole === "sectionhead_rspc"
+      )
+        defaultRspcRole = "RSPC_ADMIN";
+      else if (
+        normalizedRole.includes("dean") &&
+        normalizedRole.includes("rspc")
+      )
+        defaultRspcRole = "DEAN_RSPC";
+      else if (normalizedRole.includes("director"))
+        defaultRspcRole = "DIRECTOR";
+      dispatch(setRspcRole(defaultRspcRole));
 
       dispatch(setAccessibleModules(accessible_modules));
       dispatch(setCurrentAccessibleModules());
