@@ -7,8 +7,11 @@ import { notifications } from "@mantine/notifications";
 import classes from "../../../RSPC/styles/tableStyle.module.css";
 import ConfirmationModal from "../../../RSPC/helpers/confirmationModal";
 import { fetchStaffApplicationsRoute } from "../../../../routes/RSPCRoutes/index";
+import { useRSPCRole } from "../../../RSPC/hooks/useRSPCRole";
 
 function StaffApplicationsTable({ applications, onView, onRefresh }) {
+  const { role } = useRSPCRole();
+  const isRspcAdmin = role === "RSPC_ADMIN";
   const [deleteId, setDeleteId] = useState(null);
 
   const statusColor = (status) => {
@@ -32,6 +35,26 @@ function StaffApplicationsTable({ applications, onView, onRefresh }) {
       notifications.show({
         title: "Error",
         message: "Delete failed",
+        color: "red",
+      });
+    }
+  };
+
+  const handleStatusUpdate = async (id, nextStatus) => {
+    try {
+      await axios.patch(`${fetchStaffApplicationsRoute}${id}/`, {
+        status: nextStatus,
+      });
+      notifications.show({
+        title: "Updated",
+        message: `Application marked ${nextStatus}`,
+        color: "green",
+      });
+      if (onRefresh) onRefresh();
+    } catch {
+      notifications.show({
+        title: "Error",
+        message: "Unable to update application status",
         color: "red",
       });
     }
@@ -106,15 +129,48 @@ function StaffApplicationsTable({ applications, onView, onRefresh }) {
                       >
                         <Eye size={16} style={{ margin: 3 }} /> View
                       </Button>
-                      <Button
-                        onClick={() => setDeleteId(row.id)}
-                        variant="outline"
-                        color="red"
-                        size="xs"
-                        style={{ borderRadius: "8px" }}
-                      >
-                        <Trash size={16} style={{ margin: 3 }} /> Delete
-                      </Button>
+                      {isRspcAdmin && (
+                        <>
+                          <Button
+                            onClick={() =>
+                              handleStatusUpdate(row.id, "UNDER_REVIEW")
+                            }
+                            variant="outline"
+                            color="blue"
+                            size="xs"
+                            style={{ borderRadius: "8px" }}
+                          >
+                            Review
+                          </Button>
+                          <Button
+                            onClick={() => handleStatusUpdate(row.id, "SELECTED")}
+                            variant="outline"
+                            color="green"
+                            size="xs"
+                            style={{ borderRadius: "8px" }}
+                          >
+                            Select
+                          </Button>
+                          <Button
+                            onClick={() => handleStatusUpdate(row.id, "REJECTED")}
+                            variant="outline"
+                            color="red"
+                            size="xs"
+                            style={{ borderRadius: "8px" }}
+                          >
+                            Reject
+                          </Button>
+                          <Button
+                            onClick={() => setDeleteId(row.id)}
+                            variant="outline"
+                            color="gray"
+                            size="xs"
+                            style={{ borderRadius: "8px" }}
+                          >
+                            <Trash size={16} style={{ margin: 3 }} /> Delete
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </Table.Td>
                 </Table.Tr>

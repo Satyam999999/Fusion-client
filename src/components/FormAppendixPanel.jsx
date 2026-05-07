@@ -1,81 +1,66 @@
-import { ActionIcon, Group, Paper, Stack, Text } from "@mantine/core";
-import { ArrowRight } from "@phosphor-icons/react";
+import { Paper, Title, Grid, Text, Anchor } from "@mantine/core";
+import { DownloadSimple } from "@phosphor-icons/react";
 import PropTypes from "prop-types";
-import { useNavigate } from "react-router-dom";
+import classes from "../Modules/RSPC/styles/formStyle.module.css";
 
-const appendixContent = {
-  research: {
-    title: "All RSPC Forms",
-    items: [
-      { label: "Ethical Clearance Form", href: "/governance" },
-      { label: "FIG Closure", href: "/research/forms" },
-      { label: "FIG Project Proposal Submission Form", href: "/research" },
-      { label: "Requisition For Publishing Advertisement", href: "/staff/recruitment" },
-      { label: "Extension Of Appointment Through Project Investigator", href: "/staff/appointments" },
-      { label: "Upgradation Of Appointment Through Committee", href: "/staff/appointments" },
-    ],
+const formsList = [
+  {
+    name: "Ethical Clearance Form",
+    link: "https://www.iiitdmj.ac.in/rspc.iiitdmj.ac.in/DRSPC/PM/6_IEC_Form.doc",
   },
-  recruitment: {
-    title: "All RSPC Forms",
-    items: [
-      { label: "Ethical Clearance Form", href: "/governance" },
-      { label: "FIG Closure", href: "/research/forms" },
-      { label: "FIG Project Proposal Submission Form", href: "/research" },
-      { label: "Requisition For Publishing Advertisement", href: "/staff/recruitment" },
-      { label: "Extension Of Appointment Through Project Investigator", href: "/staff/appointments" },
-      { label: "Upgradation Of Appointment Through Committee", href: "/staff/appointments" },
-    ],
+  {
+    name: "FIG Closure",
+    link: "https://www.iiitdmj.ac.in/rspc.iiitdmj.ac.in/DRSPC/PM/PM02%20FIG%20Closure.docx",
   },
-};
+  {
+    name: "FIG Project Proposal Submission Form",
+    link: "https://www.iiitdmj.ac.in/rspc.iiitdmj.ac.in/DRSPC/PM/Submission%20form%20of%20FIG.docx",
+  },
+  {
+    name: "Requisition For Publishing Advertisement",
+    link: "https://www.iiitdmj.ac.in/rspc.iiitdmj.ac.in/DRSPC/PEM/PEM02%20Requisition%20for%20publishing%20Advt.docx",
+  },
+  {
+    name: "Extension Of Appointment Through Project Investigator",
+    link: "https://www.iiitdmj.ac.in/rspc.iiitdmj.ac.in/DRSPC/PEM/PEM09%20Extension%20of%20Appointment%20through%20PI.doc",
+  },
+  {
+    name: "Upgradation Of Appointment Through Committee",
+    link: "https://www.iiitdmj.ac.in/rspc.iiitdmj.ac.in/DRSPC/PEM/PEM10%20Upgradation%20of%20Appointment%20through%20Committee%20.doc",
+  },
+];
 
-function FormAppendixPanel({ module }) {
-  const content = appendixContent[module] || appendixContent.research;
-  const navigate = useNavigate();
-
+function FormAppendixPanel({ module = "research" }) {
   return (
-    <Paper
-      p="xl"
-      withBorder
-      style={{
-        borderLeft: "10px solid #15ABFF",
-        borderRadius: 28,
-        background: "#FFFFFF",
-        minHeight: 420,
-        boxShadow: "0 10px 35px rgba(21, 171, 255, 0.08)",
-      }}
-    >
-      <Stack gap="xl" h="100%">
-        <Text ta="center" fw={700} size="xl" c="#15ABFF">
-          {content.title}
-        </Text>
-
-        <Stack gap="lg" mx={{ base: 0, md: 5 }}>
-          {content.items.map((item) => (
-            <Group key={item.label} justify="space-between" wrap="nowrap" gap="md">
-              <Text size="lg" c="#3c3c3c" style={{ lineHeight: 1.2 }}>
-                {item.label}
-              </Text>
-              <ActionIcon
-                variant="subtle"
-                color="blue"
-                size="lg"
-                radius="xl"
-                onClick={() => navigate(item.href)}
-                title={`Go to ${item.label}`}
-                aria-label={`Go to ${item.label}`}
+    <Paper p="lg" shadow="sm" className={classes.formContainer}>
+      <Title order={2} className={classes.formTitle}>
+        All RSPC Forms
+      </Title>
+      <Grid gutter="xl">
+        {formsList.map((form) => (
+          <Grid.Col span={12} key={form.name}>
+            <Text>
+              {form.name}{" "}
+              <Anchor
+                href={form.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: "0.85em" }}
               >
-                <ArrowRight size={22} weight="bold" />
-              </ActionIcon>
-            </Group>
-          ))}
-        </Stack>
-      </Stack>
+                <DownloadSimple size={26} style={{ marginRight: "3px" }} />
+              </Anchor>
+            </Text>
+          </Grid.Col>
+        ))}
+      </Grid>
     </Paper>
   );
 }
 
 FormAppendixPanel.propTypes = {
-  module: PropTypes.oneOf(["research", "recruitment"]).isRequired,
+  module: PropTypes.oneOf(["research", "recruitment"]),
 };
+
+
 
 export default FormAppendixPanel;

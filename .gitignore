@@ -35,3 +35,32 @@ __pycache__/
 *.pyc
 reqs_filtered.txt
 *_filtered.txt
+
+# Database and seed files
+db_backups/
+*.sql
+*.sql.backup
+seed_data/
+test_data/
+
+# Build artifacts and coverage
+.coverage
+coverage/
+*.lcov
+
+# Environment and configuration
+.env.local
+.env.*.local
+
+# IDE workspace settings
+.vscode/settings.json
+.vscode/extensions.json
+.vscode/*.log
+
+# Temporary and generated files
+*.tmp
+*.temp
+*.cache
+build-info.json
+.turbo
+.cache/

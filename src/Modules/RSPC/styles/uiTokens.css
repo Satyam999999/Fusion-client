@@ -1,0 +1,40 @@
+:root {
+  --rspc-primary: #0b7fd1;
+  --rspc-primary-soft: #e8f4ff;
+  --rspc-border: #d9e5f2;
+  --rspc-text-muted: #5c6b7a;
+  --rspc-surface: #ffffff;
+}
+
+.rspc-section {
+  padding: 3% 5%;
+}
+
+.rspc-stat-card {
+  border-radius: 10px;
+  border-left: 4px solid var(--rspc-accent, var(--rspc-primary));
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+}
+
+.rspc-status-chip {
+  min-width: 120px;
+  text-align: center;
+}
+
+.rspc-primary-button {
+  border-radius: 8px;
+  background-color: var(--rspc-primary);
+}
+
+.rspc-primary-button:hover {
+  filter: brightness(0.95);
+}
+
+.rspc-role-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--rspc-border);
+  background: var(--rspc-surface);
+  border-radius: 10px;
+}

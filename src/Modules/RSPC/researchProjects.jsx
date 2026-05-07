@@ -5,36 +5,26 @@ import {
   Button,
   Flex,
   Text,
-  Loader,
-  Center,
-  Select,
   Paper,
   Grid,
-  Badge,
 } from "@mantine/core";
-import {
-  CaretCircleLeft,
-  CaretCircleRight,
-  SortAscending,
-} from "@phosphor-icons/react";
+import { CaretCircleLeft, CaretCircleRight } from "@phosphor-icons/react";
 import axios from "axios";
+import { notifications } from "@mantine/notifications";
 import classes from "./styles/researchProjectsStyle.module.css";
 import RSPCBreadcrumbs from "./components/RSPCBreadcrumbs";
 import ProjectTable from "./components/tables/projectTable";
 import AddProjectModal from "./components/modals/addProjectModal";
 import ExpenditureTable from "./components/tables/expenditureTable";
 import FormAppendixPanel from "../../components/FormAppendixPanel";
+import ProgressReportsTab from "./components/tabs/progressReportsTab";
+import ProjectClosuresTab from "./components/tabs/projectClosuresTab";
 import {
   fetchProjectsRoute,
   fetchFundingAgenciesRoute,
   fetchExpendituresRoute,
-  fetchPublicationsRoute,
-  fetchPatentsRoute,
 } from "../../routes/RSPCRoutes";
-import { badgeColor } from "./helpers/badgeColours";
 import { useRSPCRole } from "./hooks/useRSPCRole";
-
-const CATEGORIES = ["Most Recent", "Ongoing", "Completed", "Terminated"];
 
 function toList(payload) {
   if (Array.isArray(payload)) return payload;
@@ -47,7 +37,8 @@ function StatCard({ label, value, color }) {
     <Paper
       p="md"
       withBorder
-      style={{ borderLeft: `4px solid ${color || "#15ABFF"}`, borderRadius: 8 }}
+      className="rspc-stat-card"
+      style={{ "--rspc-accent": color || "#15ABFF" }}
     >
       <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
         {label}
@@ -81,117 +72,108 @@ function ResearchProjects() {
   const [projectsData, setProjectsData] = useState([]);
   const [fundingAgencies, setFundingAgencies] = useState([]);
   const [expenditures, setExpenditures] = useState([]);
-  const [publications, setPublications] = useState([]);
-  const [patents, setPatents] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("0");
-  const [sortedBy, setSortedBy] = useState("Most Recent");
   const [addModalOpened, setAddModalOpened] = useState(false);
   const tabsListRef = useRef(null);
 
-  // Keep professor scope behavior, but avoid a blank screen when backend payload
-  // doesn't include the expected PI fields for matching.
-  const professorScopedProjects = projectsData.filter((project) => {
-    const piName = String(project?.pi_name || "")
-      .trim()
-      .toLowerCase();
-    return piName.length > 0;
-  });
+  // Faculty dashboard is intentionally project-owned: backend already scopes the
+  // list to the authenticated user's PI/Co-PI records.
+  const visibleProjects = projectsData;
+  const visibleProjectIds = new Set(
+    visibleProjects.map((project) => String(project.id)),
+  );
+  const getExpenditureProjectId = (entry) =>
+    String(entry?.project ?? entry?.project_id ?? entry?.project?.id ?? "");
+  const visibleExpenditures =
+    role === "FACULTY"
+      ? expenditures.filter((entry) => visibleProjectIds.has(getExpenditureProjectId(entry)))
+      : expenditures;
 
-  const visibleProjects =
-    activeRole === "Professor"
-      ? professorScopedProjects.length > 0
-        ? professorScopedProjects
-        : projectsData
-      : projectsData;
+  // AbortController-aware loaders — prevents React state update on unmounted component
+  const loadAll = (signal) => {
+    const get = (url) => axios.get(url, { signal });
 
-  const loadProjects = async () => {
-    setLoading(true);
-    try {
-      const r = await axios.get(fetchProjectsRoute);
-      setProjectsData(toList(r.data));
-    } catch (e) {
-      console.error(e);
-      setProjectsData([]);
-    } finally {
-      setLoading(false);
-    }
+    Promise.allSettled([
+      get(fetchProjectsRoute),
+      get(fetchFundingAgenciesRoute),
+      get(fetchExpendituresRoute),
+    ])
+      .then((results) => {
+        const [projRes, agencyRes, expendRes] = results;
+
+        if (projRes.status === "fulfilled") {
+          setProjectsData(toList(projRes.value.data));
+        } else {
+          setProjectsData([]);
+        }
+
+        if (agencyRes.status === "fulfilled") {
+          setFundingAgencies(toList(agencyRes.value.data));
+        } else {
+          setFundingAgencies([]);
+        }
+
+        if (expendRes.status === "fulfilled") {
+          setExpenditures(toList(expendRes.value.data));
+        } else {
+          setExpenditures([]);
+        }
+      })
+      .catch((e) => {
+        if (axios.isCancel(e)) return;
+      })
+      .finally(() => {});
   };
-  const loadAgencies = async () => {
-    try {
-      const r = await axios.get(fetchFundingAgenciesRoute);
-      setFundingAgencies(toList(r.data));
-    } catch (e) {
-      console.error(e);
-      setFundingAgencies([]);
-    }
+
+  // Standalone project refresh (used by AddProjectModal onSuccess)
+  const loadProjects = (signal) => {
+    const ctrl = signal ? { signal } : {};
+    axios
+      .get(fetchProjectsRoute, ctrl)
+      .then((r) => setProjectsData(toList(r.data)))
+      .catch((e) => {
+        if (axios.isCancel(e)) return;
+        notifications.show({
+          title: "Error",
+          message: "Failed to refresh projects.",
+          color: "red",
+        });
+      });
   };
-  const loadExpend = async () => {
-    try {
-      const r = await axios.get(fetchExpendituresRoute);
-      setExpenditures(toList(r.data));
-    } catch (e) {
-      console.error(e);
-      setExpenditures([]);
-    }
-  };
-  const loadPubs = async () => {
-    try {
-      const r = await axios.get(fetchPublicationsRoute);
-      setPublications(toList(r.data));
-    } catch (e) {
-      console.error(e);
-      setPublications([]);
-    }
-  };
-  const loadPatents = async () => {
-    try {
-      const r = await axios.get(fetchPatentsRoute);
-      setPatents(toList(r.data));
-    } catch (e) {
-      console.error(e);
-      setPatents([]);
-    }
+
+  const loadExpend = (signal) => {
+    const ctrl = signal ? { signal } : {};
+    axios
+      .get(fetchExpendituresRoute, ctrl)
+      .then((r) => setExpenditures(toList(r.data)))
+      .catch((e) => {
+        if (axios.isCancel(e)) return;
+        notifications.show({
+          title: "Error",
+          message: "Failed to refresh expenditures.",
+          color: "red",
+        });
+      });
   };
 
   useEffect(() => {
-    loadProjects();
-    loadAgencies();
-    loadExpend();
-    loadPubs();
-    loadPatents();
+    const controller = new AbortController();
+    loadAll(controller.signal);
+    return () => controller.abort();   // cancel all in-flight requests on unmount
   }, []);
-  useEffect(() => {
-    const roleAwareTabsCount = activeRole === "Professor" ? 5 : 4;
-    if (+activeTab > roleAwareTabsCount - 1) setActiveTab("0");
-  }, [activeRole, activeTab]);
 
-  const filterProjects = () => {
-    if (sortedBy === "Ongoing")
-      return visibleProjects.filter((p) => p.status === "ONGOING");
-    if (sortedBy === "Completed")
-      return visibleProjects.filter((p) => p.status === "COMPLETED");
-    if (sortedBy === "Terminated")
-      return visibleProjects.filter((p) => p.status === "TERMINATED");
-    return [...visibleProjects].sort(
-      (a, b) => new Date(b.created_at) - new Date(a.created_at),
-    );
-  };
+
 
   const totalFunding = visibleProjects.reduce(
     (s, p) => s + parseFloat(p.sanctioned_amount || 0),
     0,
   );
-  const statusCounts = visibleProjects.reduce((acc, p) => {
-    acc[p.status] = (acc[p.status] || 0) + 1;
-    return acc;
-  }, {});
 
   const tabItems = [
     {
       title: "Dashboard",
       component: (
-        <div style={{ padding: "3% 5%" }}>
+        <div className="rspc-section">
           <Grid gutter="md" mb="xl">
             <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
               <StatCard
@@ -202,82 +184,32 @@ function ResearchProjects() {
             </Grid.Col>
             <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
               <StatCard
-                label="Ongoing"
-                value={statusCounts.ONGOING || 0}
-                color="#50E3C2"
-              />
-            </Grid.Col>
-            <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-              <StatCard
-                label="Publications"
-                value={publications.length}
-                color="#B8E986"
-              />
-            </Grid.Col>
-            <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-              <StatCard
-                label="Patents"
-                value={patents.length}
-                color="#FFE082"
-              />
-            </Grid.Col>
-            <Grid.Col span={{ base: 12, sm: 6, md: 6 }}>
-              <StatCard
                 label="Total Sanctioned Funding"
                 value={`₹${totalFunding.toLocaleString("en-IN")}`}
                 color="#15ABFF"
               />
             </Grid.Col>
-            <Grid.Col span={{ base: 12, sm: 6, md: 6 }}>
-              <StatCard
-                label="Total Expenditures Recorded"
-                value={expenditures.length}
-                color="#EF9A9A"
-              />
-            </Grid.Col>
           </Grid>
           <Text fw={600} mb="sm">
-            Projects by Status
+            My Projects
           </Text>
-          <Flex gap="sm" wrap="wrap">
-            {Object.entries(statusCounts).map(([st, count]) => (
-              <Paper
-                key={st}
-                p="sm"
-                withBorder
-                style={{ minWidth: 120, textAlign: "center" }}
-              >
-                <Badge
-                  color={badgeColor[st] || "gray"}
-                  size="lg"
-                  style={{ color: "#3f3f3f" }}
-                  mb={6}
-                >
-                  {st}
-                </Badge>
-                <Text size="xl" fw={700}>
-                  {count}
-                </Text>
-              </Paper>
-            ))}
-          </Flex>
+          <ProjectTable
+            projectsData={visibleProjects}
+            activeRole={activeRole}
+            fundingAgencies={fundingAgencies}
+            onProjectsRefresh={loadProjects}
+          />
         </div>
-      ),
-    },
-    {
-      title: "Projects",
-      component: loading ? (
-        <Center py="xl">
-          <Loader size="lg" />
-        </Center>
-      ) : (
-        <ProjectTable projectsData={filterProjects()} activeRole={activeRole} />
       ),
     },
     {
       title: "Expenditures",
       component: (
-        <ExpenditureTable expenditures={expenditures} onRefresh={loadExpend} />
+        <ExpenditureTable
+          expenditures={visibleExpenditures}
+          onRefresh={loadExpend}
+          projects={visibleProjects}
+        />
       ),
     },
   ];
@@ -288,13 +220,13 @@ function ResearchProjects() {
     tabItems.push({
       title: "New Project Proposal",
       component: (
-        <div style={{ padding: "3% 5%" }}>
+        <div className="rspc-section">
           <Text c="dimmed" mb="md">
             Submit a new sponsored project proposal.
           </Text>
           <Button
-            color="#15ABFF"
-            style={{ borderRadius: 8 }}
+            color="var(--rspc-primary)"
+            className="rspc-primary-button"
             onClick={() => setAddModalOpened(true)}
           >
             + New Project Proposal
@@ -307,8 +239,32 @@ function ResearchProjects() {
   tabItems.push({
     title: "Form Appendix",
     component: (
-      <div style={{ padding: "3% 5%" }}>
+      <div className="rspc-section">
         <FormAppendixPanel module="research" />
+      </div>
+    ),
+  });
+
+  tabItems.push({
+    title: "Progress Reports",
+    component: (
+      <div className="rspc-section">
+        <ProgressReportsTab
+          visibleProjects={visibleProjects}
+          onProjectsRefresh={loadProjects}
+        />
+      </div>
+    ),
+  });
+
+  tabItems.push({
+    title: "Project Closures",
+    component: (
+      <div className="rspc-section">
+        <ProjectClosuresTab
+          visibleProjects={visibleProjects}
+          onProjectsRefresh={loadProjects}
+        />
       </div>
     ),
   });
@@ -370,16 +326,6 @@ function ResearchProjects() {
             <CaretCircleRight size={28} />
           </Button>
         </Flex>
-        {activeTab === "1" && (
-          <Select
-            classNames={{ input: classes.selectinputs }}
-            data={CATEGORIES}
-            value={sortedBy}
-            onChange={setSortedBy}
-            rightSection={<SortAscending size={18} />}
-            style={{ width: 160 }}
-          />
-        )}
       </Flex>
       <div style={{ marginTop: 16 }}>{tabItems[+activeTab]?.component}</div>
       <AddProjectModal

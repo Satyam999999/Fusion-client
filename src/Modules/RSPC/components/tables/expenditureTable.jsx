@@ -1,7 +1,19 @@
 import PropTypes from "prop-types";
 import cx from "clsx";
-import { useState } from "react";
-import { Table, Button, Badge, ScrollArea, Text } from "@mantine/core";
+import { useEffect, useState } from "react";
+import {
+  Table,
+  Button,
+  Badge,
+  ScrollArea,
+  Text,
+  Flex,
+  Modal,
+  Grid,
+  Select,
+  TextInput,
+  Textarea,
+} from "@mantine/core";
 import {
   ThumbsUp,
   ThumbsDown,
@@ -16,8 +28,22 @@ import { badgeColor } from "../../helpers/badgeColours";
 import {
   approveExpenditureRoute,
   rejectExpenditureRoute,
+  fetchExpendituresRoute,
+  fetchProjectsRoute,
 } from "../../../../routes/RSPCRoutes";
 import { useRSPCRole } from "../../hooks/useRSPCRole";
+
+const EXPENDITURE_HEAD_OPTIONS = [
+  { value: "MANPOWER", label: "Manpower/Salary" },
+  { value: "EQUIPMENT", label: "Equipment" },
+  { value: "CONSUMABLES", label: "Consumables" },
+  { value: "TRAVEL", label: "Travel" },
+  { value: "PUBLICATIONS", label: "Publications" },
+  { value: "CONTINGENCY", label: "Contingency" },
+  { value: "OVERHEAD", label: "Overhead" },
+  { value: "SERVICES", label: "Services" },
+  { value: "OTHER", label: "Other" },
+];
 
 function SortTh({ label, col, sortColumn, sortDirection, onSort }) {
   return (
@@ -53,11 +79,68 @@ SortTh.propTypes = {
   onSort: PropTypes.func.isRequired,
 };
 
-function ExpenditureTable({ expenditures, onRefresh }) {
-  const { canApproveExpenditure, canRejectExpenditure } = useRSPCRole();
+function ExpenditureTable({
+  expenditures,
+  onRefresh,
+  projects = [],
+  fixedProjectId = null,
+}) {
+  const {
+    canApproveExpenditure,
+    canRejectExpenditureByAmount,
+    can,
+  } = useRSPCRole();
   const [scrolled, setScrolled] = useState(false);
   const [sortColumn, setSortColumn] = useState(null);
   const [sortDirection, setSortDirection] = useState("asc");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [createErrors, setCreateErrors] = useState({});
+  const [projectScope, setProjectScope] = useState(projects || []);
+  const [form, setForm] = useState({
+    project: fixedProjectId ? String(fixedProjectId) : "",
+    expenditure_head: "",
+    description: "",
+    amount: "",
+    date: "",
+    last_date: "",
+    voucher_number: "",
+    remarks: "",
+  });
+
+  const canCreateExpenditure = can("add_expenditure");
+
+  useEffect(() => {
+    setProjectScope(projects || []);
+  }, [projects]);
+
+  useEffect(() => {
+    if (!fixedProjectId) return;
+    setForm((prev) => ({ ...prev, project: String(fixedProjectId) }));
+  }, [fixedProjectId]);
+
+  useEffect(() => {
+    if ((projectScope || []).length > 0) return;
+
+    let active = true;
+    axios
+      .get(fetchProjectsRoute)
+      .then((response) => {
+        if (!active) return;
+        const data = Array.isArray(response.data)
+          ? response.data
+          : response.data?.results || [];
+        setProjectScope(data);
+      })
+      .catch(() => {
+        if (!active) return;
+        setProjectScope([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [projectScope.length]);
 
   const handleSort = (col) => {
     if (sortColumn === col)
@@ -123,11 +206,156 @@ function ExpenditureTable({ expenditures, onRefresh }) {
     }
   };
 
+  const handleCreate = async () => {
+    setCreateErrors({});
+    const selectedProject = fixedProjectId || form.project;
+
+    if (!selectedProject || !form.expenditure_head || !form.description || !form.amount || !form.date) {
+      notifications.show({
+        title: "Validation",
+        message: "Project, head, description, amount, and date are required.",
+        color: "red",
+      });
+      return;
+    }
+
+    const numericAmount = Number(form.amount);
+    if (!numericAmount || numericAmount <= 0) {
+      setCreateErrors({ amount: "Amount must be greater than 0." });
+      return;
+    }
+
+    const selectedProjectData = (projectScope || []).find(
+      (p) => String(p.id) === String(selectedProject),
+    );
+    const projectStatus = String(selectedProjectData?.status || "").toUpperCase();
+    if (["COMPLETED", "TERMINATED", "REJECTED"].includes(projectStatus)) {
+      notifications.show({
+        title: "Validation",
+        message: "Expenditures cannot be added to closed projects.",
+        color: "red",
+      });
+      return;
+    }
+
+    if (selectedProjectData?.start_date && form.date) {
+      const projectStart = new Date(selectedProjectData.start_date);
+      const expenditureDate = new Date(form.date);
+      if (!Number.isNaN(projectStart.getTime()) && !Number.isNaN(expenditureDate.getTime()) && expenditureDate < projectStart) {
+        setCreateErrors({
+          date: "Expenditure date cannot be earlier than project start date.",
+        });
+        return;
+      }
+    }
+
+    const sanctionedAmount = Number(selectedProjectData?.sanctioned_amount || 0);
+    if (sanctionedAmount > 0) {
+      const projectExpenditures = (expenditures || []).filter(
+        (row) => String(row.project) === String(selectedProject),
+      );
+
+      const committedTotal = projectExpenditures.reduce((sum, row) => {
+        if (String(row.status || "").toUpperCase() === "REJECTED") return sum;
+        return sum + Number(row.amount || 0);
+      }, 0);
+      const proposedTotal = committedTotal + numericAmount;
+      if (proposedTotal > sanctionedAmount) {
+        const remainingBudget = Math.max(sanctionedAmount - committedTotal, 0);
+        const remainingText = `Remaining budget is Rs ${remainingBudget.toLocaleString("en-IN")}.`;
+        setCreateErrors({
+          amount: `Expenditure exceeds sanctioned project budget. ${remainingText}`,
+        });
+        notifications.show({
+          title: "Validation",
+          message: `Expenditure exceeds sanctioned project budget. ${remainingText}`,
+          color: "red",
+        });
+        return;
+      }
+
+      if (form.expenditure_head === "MANPOWER") {
+        const manpowerTotal = projectExpenditures.reduce((sum, row) => {
+          if (String(row.status || "").toUpperCase() === "REJECTED") return sum;
+          if (String(row.expenditure_head || "").toUpperCase() !== "MANPOWER") return sum;
+          return sum + Number(row.amount || 0);
+        }, 0);
+        const proposedManpower = manpowerTotal + numericAmount;
+        const manpowerCap = sanctionedAmount * 0.6;
+        if (proposedManpower > manpowerCap) {
+          setCreateErrors({ amount: "Manpower expenditure cannot exceed 60% of sanctioned amount." });
+          return;
+        }
+      }
+    }
+
+    setSubmitting(true);
+    try {
+      await axios.post(fetchExpendituresRoute, {
+        project: Number(selectedProject),
+        expenditure_head: form.expenditure_head,
+        description: form.description,
+        amount: numericAmount,
+        date: form.date,
+        last_date: form.last_date || null,
+        voucher_number: form.voucher_number || null,
+        remarks: form.remarks || null,
+      });
+
+      notifications.show({
+        title: "Created",
+        message: "Expenditure request submitted successfully.",
+        color: "green",
+      });
+
+      setCreateOpen(false);
+      setForm({
+        project: fixedProjectId ? String(fixedProjectId) : "",
+        expenditure_head: "",
+        description: "",
+        amount: "",
+        date: "",
+        last_date: "",
+        voucher_number: "",
+        remarks: "",
+      });
+      onRefresh?.();
+    } catch (e) {
+      const data = e?.response?.data;
+      let firstErrorMessage = "";
+      if (data && typeof data === "object") {
+        const mapped = {};
+        Object.entries(data).forEach(([k, v]) => {
+          mapped[k] = Array.isArray(v) ? v.join(" ") : String(v);
+        });
+        setCreateErrors(mapped);
+        firstErrorMessage = Object.values(mapped).find((v) => String(v || "").trim()) || "";
+      }
+      notifications.show({
+        title: "Error",
+        message:
+          data?.error ||
+          data?.detail ||
+          firstErrorMessage ||
+          "Failed to create expenditure.",
+        color: "red",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const projectOptions = (projectScope || []).map((p) => ({
+    value: String(p.id),
+    label: `${p.project_number || "-"} - ${p.title || "Untitled"}`,
+  }));
+
   const rows = sortData(expenditures || []).map((row, i) => {
     const amount = parseFloat(row.amount) || 0;
     const showApprove =
       row.status === "PENDING" && canApproveExpenditure(amount);
-    const showReject = row.status === "PENDING" && canRejectExpenditure();
+    const showReject =
+      row.status === "PENDING" && canRejectExpenditureByAmount(amount);
 
     return (
       <Table.Tr key={i}>
@@ -189,72 +417,172 @@ function ExpenditureTable({ expenditures, onRefresh }) {
   });
 
   return (
-    <ScrollArea
-      h={300}
-      onScrollPositionChange={({ y }) => setScrolled(y !== 0)}
-    >
-      <Table highlightOnHover>
-        <Table.Thead
-          className={cx(classes.header, { [classes.scrolled]: scrolled })}
-        >
-          <Table.Tr>
-            <SortTh
-              label="Status"
-              col="status"
-              sortColumn={sortColumn}
-              sortDirection={sortDirection}
-              onSort={handleSort}
-            />
-            <SortTh
-              label="Head"
-              col="expenditure_head"
-              sortColumn={sortColumn}
-              sortDirection={sortDirection}
-              onSort={handleSort}
-            />
-            <SortTh
-              label="Description"
-              col="description"
-              sortColumn={sortColumn}
-              sortDirection={sortDirection}
-              onSort={handleSort}
-            />
-            <SortTh
-              label="Amount"
-              col="amount"
-              sortColumn={sortColumn}
-              sortDirection={sortDirection}
-              onSort={handleSort}
-            />
-            <SortTh
-              label="Date"
-              col="date"
-              sortColumn={sortColumn}
-              sortDirection={sortDirection}
-              onSort={handleSort}
-            />
-            <Table.Th className={classes["header-cell"]}>Actions</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {(expenditures || []).length === 0 ? (
+    <>
+      <Flex justify="flex-end" mb="sm">
+        {canCreateExpenditure && (
+          <Button color="#15ABFF" onClick={() => setCreateOpen(true)}>
+            + Add Expenditure
+          </Button>
+        )}
+      </Flex>
+
+      <ScrollArea
+        h={300}
+        onScrollPositionChange={({ y }) => setScrolled(y !== 0)}
+      >
+        <Table highlightOnHover>
+          <Table.Thead
+            className={cx(classes.header, { [classes.scrolled]: scrolled })}
+          >
             <Table.Tr>
-              <Table.Td colSpan={6}>
-                <Text ta="center" c="dimmed" py="sm">
-                  No expenditures recorded
-                </Text>
-              </Table.Td>
+              <SortTh
+                label="Status"
+                col="status"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              />
+              <SortTh
+                label="Head"
+                col="expenditure_head"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              />
+              <SortTh
+                label="Description"
+                col="description"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              />
+              <SortTh
+                label="Amount"
+                col="amount"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              />
+              <SortTh
+                label="Date"
+                col="date"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              />
+              <Table.Th className={classes["header-cell"]}>Actions</Table.Th>
             </Table.Tr>
-          ) : (
-            rows
+          </Table.Thead>
+          <Table.Tbody>
+            {(expenditures || []).length === 0 ? (
+              <Table.Tr>
+                <Table.Td colSpan={6}>
+                  <Text ta="center" c="dimmed" py="sm">
+                    No expenditures recorded
+                  </Text>
+                </Table.Td>
+              </Table.Tr>
+            ) : (
+              rows
+            )}
+          </Table.Tbody>
+        </Table>
+      </ScrollArea>
+
+      <Modal
+        opened={createOpen}
+        onClose={() => setCreateOpen(false)}
+        title="Add Expenditure"
+        centered
+      >
+        <Grid>
+          {!fixedProjectId && (
+            <Grid.Col span={12}>
+              <Select
+                label="Project"
+                data={projectOptions}
+                searchable
+                value={form.project}
+                onChange={(v) => setForm((f) => ({ ...f, project: v || "" }))}
+                error={createErrors.project}
+                required
+              />
+            </Grid.Col>
           )}
-        </Table.Tbody>
-      </Table>
-    </ScrollArea>
+          <Grid.Col span={12}>
+            <Select
+              label="Expenditure Head"
+              data={EXPENDITURE_HEAD_OPTIONS}
+              value={form.expenditure_head}
+              onChange={(v) => setForm((f) => ({ ...f, expenditure_head: v || "" }))}
+              error={createErrors.expenditure_head}
+              required
+            />
+          </Grid.Col>
+          <Grid.Col span={12}>
+            <Textarea
+              label="Description"
+              value={form.description}
+              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              error={createErrors.description}
+              required
+            />
+          </Grid.Col>
+          <Grid.Col span={6}>
+            <TextInput
+              label="Amount"
+              type="number"
+              value={form.amount}
+              onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+              error={createErrors.amount}
+              required
+            />
+          </Grid.Col>
+          <Grid.Col span={6}>
+            <TextInput
+              label="Date"
+              type="date"
+              value={form.date}
+              onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+              error={createErrors.date}
+              required
+            />
+          </Grid.Col>
+          <Grid.Col span={6}>
+            <TextInput
+              label="Last Date"
+              type="date"
+              value={form.last_date}
+              onChange={(e) => setForm((f) => ({ ...f, last_date: e.target.value }))}
+              error={createErrors.last_date}
+            />
+          </Grid.Col>
+          <Grid.Col span={6}>
+            <TextInput
+              label="Voucher Number"
+              value={form.voucher_number}
+              onChange={(e) => setForm((f) => ({ ...f, voucher_number: e.target.value }))}
+              error={createErrors.voucher_number}
+            />
+          </Grid.Col>
+        </Grid>
+
+        <Flex justify="flex-end" gap="sm" mt="md">
+          <Button variant="default" onClick={() => setCreateOpen(false)}>
+            Cancel
+          </Button>
+          <Button color="#15ABFF" onClick={handleCreate} loading={submitting}>
+            Submit
+          </Button>
+        </Flex>
+      </Modal>
+    </>
   );
 }
 ExpenditureTable.propTypes = {
   expenditures: PropTypes.arrayOf(PropTypes.shape({})),
   onRefresh: PropTypes.func,
+  projects: PropTypes.arrayOf(PropTypes.shape({})),
+  fixedProjectId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
 };
 export default ExpenditureTable;

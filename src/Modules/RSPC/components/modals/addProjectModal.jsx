@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Modal,
   Button,
@@ -20,8 +20,24 @@ function formatApiErrorMessage(errorData) {
   if (Array.isArray(errorData)) return errorData.join(", ");
 
   if (typeof errorData === "object") {
+    const flatten = (value) => {
+      if (value == null) return "";
+      if (typeof value === "string") return value;
+      if (Array.isArray(value)) return value.map(flatten).filter(Boolean).join(", ");
+      if (typeof value === "object") {
+        return Object.entries(value)
+          .map(([key, nested]) => {
+            const nestedMessage = flatten(nested);
+            return nestedMessage ? `${key}: ${nestedMessage}` : key;
+          })
+          .filter(Boolean)
+          .join(" | ");
+      }
+      return String(value);
+    };
+
     const parts = Object.entries(errorData).map(([field, value]) => {
-      const message = Array.isArray(value) ? value.join(", ") : String(value);
+      const message = flatten(value);
       return `${field}: ${message}`;
     });
     return parts.join(" | ");
@@ -30,7 +46,14 @@ function formatApiErrorMessage(errorData) {
   return "Failed to create project";
 }
 
-function AddProjectModal({ opened, onClose, fundingAgencies, onSuccess }) {
+function AddProjectModal({
+  opened,
+  onClose,
+  fundingAgencies,
+  onSuccess,
+  mode = "create",
+  projectData = null,
+}) {
   const [form, setForm] = useState({
     title: "",
     project_number: "",
@@ -42,6 +65,38 @@ function AddProjectModal({ opened, onClose, fundingAgencies, onSuccess }) {
   });
   const [agencyId, setAgencyId] = useState(null);
   const [loading, setLoading] = useState(false);
+  const isEditMode = mode === "edit";
+
+  useEffect(() => {
+    if (!opened) return;
+
+    if (isEditMode && projectData) {
+      setForm({
+        title: projectData.title || "",
+        project_number: projectData.project_number || "",
+        description: projectData.description || "",
+        sanctioned_amount: projectData.sanctioned_amount || "",
+        status: projectData.status || "PROPOSED",
+        start_date: projectData.start_date || "",
+        original_end_date: projectData.original_end_date || "",
+      });
+      setAgencyId(
+        projectData.funding_agency ? String(projectData.funding_agency) : null,
+      );
+      return;
+    }
+
+    setForm({
+      title: "",
+      project_number: "",
+      description: "",
+      sanctioned_amount: "",
+      status: "PROPOSED",
+      start_date: "",
+      original_end_date: "",
+    });
+    setAgencyId(null);
+  }, [opened, isEditMode, projectData]);
 
   const agencyOptions = (fundingAgencies || []).map((a) => ({
     value: String(a.id),
@@ -91,26 +146,24 @@ function AddProjectModal({ opened, onClose, fundingAgencies, onSuccess }) {
 
     setLoading(true);
     try {
-      await axios.post(fetchProjectsRoute, payload);
+      if (isEditMode) {
+        await axios.patch(`${fetchProjectsRoute}${projectData.id}/`, payload);
+      } else {
+        await axios.post(fetchProjectsRoute, payload);
+      }
       notifications.show({
         title: "Success",
-        message: "Project created successfully",
+        message: isEditMode
+          ? "Project updated successfully"
+          : "Project created successfully",
         color: "green",
       });
       onSuccess();
       onClose();
-      setForm({
-        title: "",
-        project_number: "",
-        description: "",
-        sanctioned_amount: "",
-        status: "PROPOSED",
-        start_date: "",
-        original_end_date: "",
-      });
-      setAgencyId(null);
     } catch (err) {
-      const msg = formatApiErrorMessage(err.response?.data);
+      const msg = formatApiErrorMessage(
+        err.response?.data,
+      );
       notifications.show({ title: "Error", message: msg, color: "red" });
     } finally {
       setLoading(false);
@@ -125,7 +178,7 @@ function AddProjectModal({ opened, onClose, fundingAgencies, onSuccess }) {
       styles={{ content: { borderLeft: "0.6rem solid #15ABFF" } }}
       title={
         <Text fw={700} size="lg" c="#15ABFF">
-          New Project Proposal
+          {isEditMode ? "Edit Project" : "New Project Proposal"}
         </Text>
       }
     >
@@ -234,7 +287,7 @@ function AddProjectModal({ opened, onClose, fundingAgencies, onSuccess }) {
           onClick={handleSubmit}
           leftSection={<CheckCircle size={18} />}
         >
-          Submit Proposal
+          {isEditMode ? "Save Changes" : "Submit Proposal"}
         </Button>
       </div>
     </Modal>
@@ -245,5 +298,7 @@ AddProjectModal.propTypes = {
   onClose: PropTypes.func.isRequired,
   fundingAgencies: PropTypes.arrayOf(PropTypes.shape({})),
   onSuccess: PropTypes.func.isRequired,
+  mode: PropTypes.oneOf(["create", "edit"]),
+  projectData: PropTypes.shape({}),
 };
 export default AddProjectModal;

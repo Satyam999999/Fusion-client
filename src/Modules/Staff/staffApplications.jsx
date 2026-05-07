@@ -23,6 +23,7 @@ import classes from "../RSPC/styles/researchProjectsStyle.module.css";
 import formClasses from "../RSPC/styles/formStyle.module.css";
 import DetailViewModal from "../RSPC/components/modals/detailViewModal";
 import StaffApplicationsTable from "./components/tables/staffApplicationsTable";
+import { useRSPCRole } from "../RSPC/hooks/useRSPCRole";
 import {
   fetchRecruitmentPostsRoute,
   fetchStaffApplicationsRoute,
@@ -38,6 +39,8 @@ const APP_STATUS = [
 ];
 
 function StaffApplications() {
+  const { role } = useRSPCRole();
+  const isFaculty = role === "FACULTY";
   const [applications, setApplications] = useState([]);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -83,6 +86,15 @@ function StaffApplications() {
   }, []);
 
   const handleSubmit = async () => {
+    if (!isFaculty) {
+      notifications.show({
+        title: "Forbidden",
+        message: "Only faculty can submit staff applications.",
+        color: "red",
+      });
+      return;
+    }
+
     if (
       !form.post ||
       !form.application_number ||
@@ -153,10 +165,11 @@ function StaffApplications() {
         />
       ),
     },
-    {
-      title: "Create Application",
-      component: (
-        <Paper className={formClasses.formContainer}>
+    ...(isFaculty
+      ? [{
+          title: "Create Application",
+          component: (
+            <Paper className={formClasses.formContainer}>
           <Text fw={700} size="lg" className={formClasses.formTitle}>
             Create Staff Application
           </Text>
@@ -271,9 +284,10 @@ function StaffApplications() {
               Create Application
             </Button>
           </div>
-        </Paper>
-      ),
-    },
+            </Paper>
+          ),
+        }]
+      : []),
   ];
 
   const handleTabNav = (dir) => {

@@ -8,14 +8,19 @@ import {
   ArrowUp,
   ArrowDown,
   CheckCircle,
+  PencilSimple,
 } from "@phosphor-icons/react";
 import axios from "axios";
 import { notifications } from "@mantine/notifications";
 import classes from "../../styles/tableStyle.module.css";
 import { badgeColor } from "../../helpers/badgeColours";
 import DetailViewModal from "../modals/detailViewModal";
+import AddProjectModal from "../modals/addProjectModal";
 import { useRSPCRole } from "../../hooks/useRSPCRole";
-import { vetProjectByHodRoute } from "../../../../routes/RSPCRoutes";
+import {
+  projectDetailsRoute,
+  vetProjectByHodRoute,
+} from "../../../../routes/RSPCRoutes";
 
 function SortTh({ label, col, sortColumn, sortDirection, onSort }) {
   return (
@@ -51,13 +56,15 @@ SortTh.propTypes = {
   onSort: PropTypes.func.isRequired,
 };
 
-function ProjectTable({ projectsData, activeRole }) {
+function ProjectTable({ projectsData, activeRole, fundingAgencies, onProjectsRefresh }) {
   const { role } = useRSPCRole();
   const [scrolled, setScrolled] = useState(false);
   const [sortColumn, setSortColumn] = useState(null);
   const [sortDirection, setSortDirection] = useState("asc");
   const [selectedProject, setSelectedProject] = useState(null);
+  const [editProject, setEditProject] = useState(null);
   const [vettingId, setVettingId] = useState(null);
+  const [loadingEditId, setLoadingEditId] = useState(null);
   const navigate = useNavigate();
 
   const handleSort = (col) => {
@@ -90,10 +97,7 @@ function ProjectTable({ projectsData, activeRole }) {
 
   const getActionLabel = (status) => {
     if (activeRole === "Professor") {
-      if (status === "SUBMITTED") return "Register";
-      if (status === "ONGOING") return "Forms";
-      if (status === "COMPLETED") return "Details";
-      return "Details";
+      return "View";
     }
     if (activeRole === "SectionHead_RSPC") {
       if (status === "REGISTERED") return "Commence";
@@ -111,6 +115,22 @@ function ProjectTable({ projectsData, activeRole }) {
       return;
     }
     setSelectedProject(row);
+  };
+
+  const handleEdit = async (row) => {
+    setLoadingEditId(row.id);
+    try {
+      const response = await axios.get(projectDetailsRoute(row.id));
+      setEditProject(response.data);
+    } catch (e) {
+      notifications.show({
+        title: "Error",
+        message: "Failed to load project details for editing",
+        color: "red",
+      });
+    } finally {
+      setLoadingEditId(null);
+    }
   };
 
   // HOD: Vet project inline on the row
@@ -137,6 +157,7 @@ function ProjectTable({ projectsData, activeRole }) {
   const rows = sortData(projectsData || []).map((row, i) => {
     // HOD can vet projects that are in SUBMITTED state
     const canVet = role === "HOD" && row.status === "SUBMITTED";
+    const canEditOwnProject = role === "FACULTY";
 
     return (
       <Table.Tr key={row.id || i}>
@@ -203,6 +224,19 @@ function ProjectTable({ projectsData, activeRole }) {
                 style={{ borderRadius: "8px" }}
               >
                 {getActionLabel(row.status)}
+              </Button>
+            )}
+            {canEditOwnProject && (
+              <Button
+                onClick={() => handleEdit(row)}
+                variant="light"
+                color="blue"
+                size="xs"
+                style={{ borderRadius: "8px" }}
+                leftSection={<PencilSimple size={14} />}
+                loading={loadingEditId === row.id}
+              >
+                Edit
               </Button>
             )}
             {/* HOD: non-SUBMITTED projects still get a Details view */}
@@ -341,6 +375,15 @@ function ProjectTable({ projectsData, activeRole }) {
           { label: "Budget Utilization", key: "budget_utilization" },
         ]}
       />
+
+      <AddProjectModal
+        opened={!!editProject}
+        onClose={() => setEditProject(null)}
+        fundingAgencies={fundingAgencies}
+        onSuccess={onProjectsRefresh}
+        mode="edit"
+        projectData={editProject}
+      />
     </>
   );
 }
@@ -348,6 +391,8 @@ function ProjectTable({ projectsData, activeRole }) {
 ProjectTable.propTypes = {
   projectsData: PropTypes.arrayOf(PropTypes.shape({})),
   activeRole: PropTypes.string,
+  fundingAgencies: PropTypes.arrayOf(PropTypes.shape({})),
+  onProjectsRefresh: PropTypes.func,
 };
 
 export default ProjectTable;

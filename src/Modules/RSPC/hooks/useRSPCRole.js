@@ -3,6 +3,7 @@ import { useSelector } from "react-redux";
 // Maps raw role strings from Redux into a canonical RSPC role key
 function resolveRole(raw) {
   const r = String(raw || "").toLowerCase();
+  const compact = r.replace(/[\s_-]+/g, "");
   if (
     r === "faculty" ||
     r === "professor" ||
@@ -10,9 +11,20 @@ function resolveRole(raw) {
     r === "associate professor"
   )
     return "FACULTY";
-  if (r === "hod" || r === "department_head" || r === "departmenthead")
+  if (
+    r === "hod" ||
+    r === "department_head" ||
+    r === "departmenthead" ||
+    r === "department head"
+  )
     return "HOD";
-  if (r === "rspc_admin" || r === "sectionhead_rspc") return "RSPC_ADMIN";
+  if (
+    r === "rspc_admin" ||
+    r === "sectionhead_rspc" ||
+    r === "section head rspc" ||
+    compact === "sectionheadrspc"
+  )
+    return "RSPC_ADMIN";
   if (r === "dean_rspc") return "DEAN_RSPC";
   if (r === "director") return "DIRECTOR";
   return "FACULTY"; // least-privilege default
@@ -103,8 +115,9 @@ export const ROLE_LOGIN_VIEWS = {
     "/research/publications",
     "/research/patents",
     "/research/consultancy",
+    "/staff/applications",
   ],
-  HOD: ["/research", "/research/forms"],
+  HOD: ["/research", "/research/forms", "/staff/appointments"],
   RSPC_ADMIN: [
     "/research",
     "/research/forms",
@@ -112,28 +125,25 @@ export const ROLE_LOGIN_VIEWS = {
     "/research/patents",
     "/research/consultancy",
     "/research/scholars",
-    "/research/workflow-tools",
+    "/research/management-console",
     "/staff/recruitment",
     "/staff/applications",
     "/staff/appointments",
-    "/governance",
   ],
   DEAN_RSPC: [
     "/research",
     "/research/forms",
+    "/research/consultancy",
     "/research/scholars",
-    "/research/workflow-tools",
-    "/staff/recruitment",
-    "/staff/applications",
+    "/research/management-console",
     "/staff/appointments",
-    "/governance",
   ],
   DIRECTOR: [
     "/research",
     "/research/forms",
+    "/research/consultancy",
     "/research/scholars",
-    "/research/workflow-tools",
-    "/governance",
+    "/research/management-console",
   ],
 };
 
@@ -188,7 +198,15 @@ export function useRSPCRole() {
   }
 
   function canRejectExpenditure() {
-    return role === "RSPC_ADMIN";
+    return false;
+  }
+
+  function canRejectExpenditureByAmount(amount) {
+    const amt = parseFloat(amount) || 0;
+    if (role === "RSPC_ADMIN" && amt <= 50000) return true;
+    if (role === "DEAN_RSPC" && amt > 50000 && amt <= 200000) return true;
+    if (role === "DIRECTOR" && amt > 200000) return true;
+    return false;
   }
 
   return {
@@ -196,6 +214,7 @@ export function useRSPCRole() {
     can,
     canApproveExpenditure,
     canRejectExpenditure,
+    canRejectExpenditureByAmount,
     visibleRoutes: ROLE_LOGIN_VIEWS[role] || ["/research"],
     actionPlan: ROLE_ACTION_PLAN[role] || [],
     label: ROLE_LABELS[role] || role,

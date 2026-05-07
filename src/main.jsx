@@ -7,6 +7,12 @@ import { store } from "./redux/store";
 import App from "./App";
 import "./index.css";
 
+// RSPC APIs are served from 127.0.0.1:8000 while frontend runs on 5173.
+// Ensure cookies/CSRF are always sent for authenticated and mutating calls.
+axios.defaults.withCredentials = true;
+axios.defaults.xsrfCookieName = "csrftoken";
+axios.defaults.xsrfHeaderName = "X-CSRFToken";
+
 axios.interceptors.request.use((config) => {
   const token = localStorage.getItem("authToken");
   if (token && !config.headers?.Authorization) {

@@ -16,7 +16,7 @@ const PROGRESS_OPTIONS = [
   {value:"DEFENDED",label:"Defended"},{value:"COMPLETED",label:"Completed"},
 ];
 
-function ScholarsTable({ scholars, onRefresh }) {
+function ScholarsTable({ scholars, onRefresh, canUpdate = true }) {
   const [scrolled, setScrolled] = useState(false);
   const [sortColumn, setSortColumn] = useState(null);
   const [sortDirection, setSortDirection] = useState("asc");
@@ -66,12 +66,16 @@ function ScholarsTable({ scholars, onRefresh }) {
         {row.expected_completion ? new Date(row.expected_completion).toLocaleDateString() : "—"}
       </Table.Td>
       <Table.Td className={classes["row-content"]}>
-        <Select data={PROGRESS_OPTIONS} placeholder="Update stage" size="xs"
-          value={null}
-          onChange={(val)=>val&&handleStatusUpdate(row.id,val)}
-          style={{width:160}}
-          rightSection={<ArrowClockwise size={14}/>}
-        />
+        {canUpdate ? (
+          <Select data={PROGRESS_OPTIONS} placeholder="Update stage" size="xs"
+            value={null}
+            onChange={(val)=>val&&handleStatusUpdate(row.id,val)}
+            style={{width:160}}
+            rightSection={<ArrowClockwise size={14}/>}
+          />
+        ) : (
+          <Text size="sm" c="dimmed">Read only</Text>
+        )}
       </Table.Td>
     </Table.Tr>
   ));
@@ -98,5 +102,9 @@ function ScholarsTable({ scholars, onRefresh }) {
     </ScrollArea>
   );
 }
-ScholarsTable.propTypes = {scholars:PropTypes.array,onRefresh:PropTypes.func};
+ScholarsTable.propTypes = {
+  scholars: PropTypes.array,
+  onRefresh: PropTypes.func,
+  canUpdate: PropTypes.bool,
+};
 export default ScholarsTable;

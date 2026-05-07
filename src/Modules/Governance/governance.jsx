@@ -32,9 +32,16 @@ import {
   approveClosureRoute,
   evaluateRuleRoute,
   executeAutomationRoute,
+  fetchProjectsRoute,
 } from "../../routes/RSPCRoutes/index";
+import { useRSPCRole } from "../RSPC/hooks/useRSPCRole";
 
 function Governance() {
+  const { role } = useRSPCRole();
+  const isFaculty = role === "FACULTY";
+  const canUseProjectClosure = role === "FACULTY" || role === "RSPC_ADMIN";
+  const canApproveProjectClosure = role === "RSPC_ADMIN";
+
   const [activeTab, setActiveTab] = useState("auth");
 
   const [authForm, setAuthForm] = useState({ username: "", password: "" });
@@ -65,7 +72,7 @@ function Governance() {
 
   const [closures, setClosures] = useState([]);
   const [closureForm, setClosureForm] = useState({
-    project: "",
+    project_number: "",
     closure_reason: "",
     closure_date: "",
     status: "SUBMITTED",
@@ -103,6 +110,25 @@ function Governance() {
   const [auditEvents, setAuditEvents] = useState([]);
 
   const loadAll = async () => {
+    if (isFaculty) {
+      try {
+        const closureResponse = await axios.get(fetchClosureRequestsRoute);
+        const closureRows = closureResponse.data.results || closureResponse.data || [];
+        setClosures(
+          closureRows.filter(
+            (row) => String(row.status || "").toUpperCase() !== "APPROVED",
+          ),
+        );
+      } catch {
+        notifications.show({
+          title: "Error",
+          message: "Failed to load governance data",
+          color: "red",
+        });
+      }
+      return;
+    }
+
     try {
       const [a, p, c, d, r, au, ae] = await Promise.all([
         axios.get(fetchApprovalRequestsRoute),
@@ -115,7 +141,11 @@ function Governance() {
       ]);
       setApprovals(a.data.results || a.data);
       setProgressEntries(p.data.results || p.data);
-      setClosures(c.data.results || c.data);
+      setClosures(
+        (c.data.results || c.data || []).filter(
+          (row) => String(row.status || "").toUpperCase() !== "APPROVED",
+        ),
+      );
       setDocuments(d.data.results || d.data);
       setRules(r.data.results || r.data);
       setAutomations(au.data.results || au.data);
@@ -141,7 +171,19 @@ function Governance() {
   useEffect(() => {
     loadAll();
     loadMe();
-  }, []);
+  }, [role]);
+
+  useEffect(() => {
+    if (!canUseProjectClosure && activeTab === "closure") {
+      setActiveTab("auth");
+    }
+  }, [canUseProjectClosure, activeTab]);
+
+  useEffect(() => {
+    if (isFaculty && activeTab !== "closure") {
+      setActiveTab("closure");
+    }
+  }, [isFaculty, activeTab]);
 
   const handleLogin = async () => {
     try {
@@ -274,10 +316,37 @@ function Governance() {
   };
 
   const createClosure = async () => {
+    const projectNumber = String(closureForm.project_number || "").trim();
+    if (!projectNumber) {
+      notifications.show({
+        title: "Validation",
+        message: "Project Number is required",
+        color: "red",
+      });
+      return;
+    }
+
     try {
+      const pRes = await axios.get(fetchProjectsRoute, {
+        params: { search: projectNumber },
+      });
+      const rows = Array.isArray(pRes.data) ? pRes.data : pRes.data?.results || [];
+      const match = rows.find(
+        (row) => String(row.project_number || "").trim().toLowerCase() === projectNumber.toLowerCase(),
+      );
+      if (!match) {
+        notifications.show({
+          title: "Validation",
+          message: "Project Number not found",
+          color: "red",
+        });
+        return;
+      }
+
       await axios.post(fetchClosureRequestsRoute, {
         ...closureForm,
-        project: Number(closureForm.project),
+        project: Number(match.id),
+        project_number: String(match.project_number),
       });
       notifications.show({
         title: "Created",
@@ -285,7 +354,7 @@ function Governance() {
         color: "green",
       });
       setClosureForm({
-        project: "",
+        project_number: "",
         closure_reason: "",
         closure_date: "",
         status: "SUBMITTED",
@@ -458,16 +527,33 @@ function Governance() {
       </Text>
       <Tabs value={activeTab} onChange={setActiveTab} mt="md">
         <Tabs.List>
-          <Tabs.Tab value="auth">Authentication and Security</Tabs.Tab>
-          <Tabs.Tab value="approval">Approval Workflow</Tabs.Tab>
-          <Tabs.Tab value="progress">Progress Reporting</Tabs.Tab>
-          <Tabs.Tab value="closure">Project Closure</Tabs.Tab>
-          <Tabs.Tab value="documents">Document Management</Tabs.Tab>
-          <Tabs.Tab value="automation">Workflow Automation</Tabs.Tab>
-          <Tabs.Tab value="traceability">Traceability and Integrity</Tabs.Tab>
-          <Tabs.Tab value="rules">Rule Engine</Tabs.Tab>
+          {!isFaculty && (
+            <Tabs.Tab value="auth">Authentication and Security</Tabs.Tab>
+          )}
+          {!isFaculty && (
+            <Tabs.Tab value="approval">Approval Workflow</Tabs.Tab>
+          )}
+          {!isFaculty && (
+            <Tabs.Tab value="progress">Progress Reporting</Tabs.Tab>
+          )}
+          {canUseProjectClosure && (
+            <Tabs.Tab value="closure">Project Closure</Tabs.Tab>
+          )}
+          {!isFaculty && (
+            <Tabs.Tab value="documents">Document Management</Tabs.Tab>
+          )}
+          {!isFaculty && (
+            <Tabs.Tab value="automation">Workflow Automation</Tabs.Tab>
+          )}
+          {!isFaculty && (
+            <Tabs.Tab value="traceability">Traceability and Integrity</Tabs.Tab>
+          )}
+          {!isFaculty && (
+            <Tabs.Tab value="rules">Rule Engine</Tabs.Tab>
+          )}
         </Tabs.List>
 
+        {!isFaculty && (
         <Tabs.Panel value="auth" pt="md">
           <Grid>
             <Grid.Col span={6}>
@@ -538,7 +624,9 @@ function Governance() {
             </Grid.Col>
           </Grid>
         </Tabs.Panel>
+        )}
 
+        {!isFaculty && (
         <Tabs.Panel value="approval" pt="md">
           <Paper p="md" withBorder>
             <Text fw={600} mb="sm">
@@ -655,7 +743,9 @@ function Governance() {
             </Table>
           </ScrollArea>
         </Tabs.Panel>
+        )}
 
+        {!isFaculty && (
         <Tabs.Panel value="progress" pt="md">
           <Paper p="md" withBorder>
             <Text fw={600} mb="sm">
@@ -757,7 +847,9 @@ function Governance() {
             </Table>
           </ScrollArea>
         </Tabs.Panel>
+        )}
 
+        {canUseProjectClosure && (
         <Tabs.Panel value="closure" pt="md">
           <Paper p="md" withBorder>
             <Text fw={600} mb="sm">
@@ -766,10 +858,10 @@ function Governance() {
             <Grid>
               <Grid.Col span={3}>
                 <TextInput
-                  label="Project ID"
-                  value={closureForm.project}
+                  label="Project Number"
+                  value={closureForm.project_number}
                   onChange={(e) =>
-                    setClosureForm((f) => ({ ...f, project: e.target.value }))
+                    setClosureForm((f) => ({ ...f, project_number: e.target.value }))
                   }
                 />
               </Grid.Col>
@@ -832,7 +924,7 @@ function Governance() {
                       <Badge>{row.status}</Badge>
                     </Table.Td>
                     <Table.Td>
-                      {row.status !== "APPROVED" && (
+                      {canApproveProjectClosure && row.status !== "APPROVED" && (
                         <Button
                           size="xs"
                           color="green"
@@ -848,7 +940,9 @@ function Governance() {
             </Table>
           </ScrollArea>
         </Tabs.Panel>
+        )}
 
+        {!isFaculty && (
         <Tabs.Panel value="documents" pt="md">
           <Paper p="md" withBorder>
             <Text fw={600} mb="sm">
@@ -934,7 +1028,9 @@ function Governance() {
             </Table>
           </ScrollArea>
         </Tabs.Panel>
+        )}
 
+        {!isFaculty && (
         <Tabs.Panel value="automation" pt="md">
           <Paper p="md" withBorder>
             <Text fw={600} mb="sm">
@@ -1033,7 +1129,9 @@ function Governance() {
             </Table>
           </ScrollArea>
         </Tabs.Panel>
+        )}
 
+        {!isFaculty && (
         <Tabs.Panel value="traceability" pt="md">
           <Text fw={600} mb="sm">
             Audit Events
@@ -1071,7 +1169,9 @@ function Governance() {
             </Table>
           </ScrollArea>
         </Tabs.Panel>
+        )}
 
+        {!isFaculty && (
         <Tabs.Panel value="rules" pt="md">
           <Paper p="md" withBorder>
             <Text fw={600} mb="sm">
@@ -1160,6 +1260,7 @@ function Governance() {
             </Table>
           </ScrollArea>
         </Tabs.Panel>
+        )}
       </Tabs>
     </>
   );

@@ -9,12 +9,17 @@ import classes from "../../styles/tableStyle.module.css";
 import { badgeColor } from "../../helpers/badgeColours";
 import { fetchConsultanciesRoute } from "../../../../routes/RSPCRoutes/index";
 import ConfirmationModal from "../../helpers/confirmationModal";
+import { useRSPCRole } from "../../hooks/useRSPCRole";
 
 function ConsultancyTable({ consultancies, onView, onRefresh }) {
+  const { role } = useRSPCRole();
   const [scrolled, setScrolled]           = useState(false);
   const [sortColumn, setSortColumn]       = useState(null);
   const [sortDirection, setSortDirection] = useState("asc");
   const [deleteId, setDeleteId]           = useState(null);
+
+  const canDelete = role === "RSPC_ADMIN";
+  const canModerate = role === "RSPC_ADMIN";
 
   const handleSort = (col) => {
     if (sortColumn===col) setSortDirection(d=>d==="asc"?"desc":"asc");
@@ -47,10 +52,46 @@ function ConsultancyTable({ consultancies, onView, onRefresh }) {
     } catch { notifications.show({title:"Error",message:"Delete failed",color:"red"}); }
   };
 
+  const handleApprove = async (id) => {
+    try {
+      await axios.post(`${fetchConsultanciesRoute}${id}/approve/`);
+      notifications.show({ title: "Approved", message: "Consultancy approved", color: "green" });
+      onRefresh && onRefresh();
+    } catch (e) {
+      const data = e?.response?.data;
+      const detailMessage =
+        data?.details && typeof data.details === "object"
+          ? Object.entries(data.details)
+              .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(" ") : String(value)}`)
+              .join("; ")
+          : "";
+      notifications.show({ title: "Error", message: detailMessage || data?.error || "Approval failed", color: "red" });
+    }
+  };
+
+  const handleReject = async (id) => {
+    try {
+      await axios.post(`${fetchConsultanciesRoute}${id}/reject/`);
+      notifications.show({ title: "Rejected", message: "Consultancy rejected", color: "orange" });
+      onRefresh && onRefresh();
+    } catch (e) {
+      const data = e?.response?.data;
+      const detailMessage =
+        data?.details && typeof data.details === "object"
+          ? Object.entries(data.details)
+              .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(" ") : String(value)}`)
+              .join("; ")
+          : "";
+      notifications.show({ title: "Error", message: detailMessage || data?.error || "Rejection failed", color: "red" });
+    }
+  };
+
+  const terminalStatuses = ["APPROVED", "REJECTED", "CANCELLED", "COMPLETED"];
+
   const rows = sortData(consultancies||[]).map((row,i)=>(
     <Table.Tr key={i}>
       <Table.Td className={classes["row-content"]}>
-        <Badge color={badgeColor[row.status]||"gray"} size="lg" style={{minWidth:"100px",color:"#3f3f3f"}}>{row.status}</Badge>
+        <Badge color={badgeColor[row.status]||"gray"} size="lg" style={{minWidth:"100px",color:"#3f3f3f"}}>{row.status_display || row.status}</Badge>
       </Table.Td>
       <Table.Td className={classes["row-content"]} style={{maxWidth:200,textAlign:"left"}}>{row.title}</Table.Td>
       <Table.Td className={classes["row-content"]}>{row.client_name}</Table.Td>
@@ -62,9 +103,23 @@ function ConsultancyTable({ consultancies, onView, onRefresh }) {
           <Button onClick={()=>onView&&onView(row)} variant="outline" color="#15ABFF" size="xs" style={{borderRadius:"8px"}}>
             <Eye size={16} style={{margin:3}}/> View
           </Button>
-          <Button onClick={()=>setDeleteId(row.id)} variant="outline" color="red" size="xs" style={{borderRadius:"8px"}}>
-            <Trash size={16} style={{margin:3}}/> Delete
-          </Button>
+          {canModerate && !terminalStatuses.includes(String(row.status || "").toUpperCase()) && (
+            <>
+              {["PROPOSED", "SUBMITTED", "NEGOTIATION"].includes(String(row.status || "").toUpperCase()) && (
+                <Button onClick={()=>handleApprove(row.id)} variant="outline" color="green" size="xs" style={{borderRadius:"8px"}}>
+                  Approve
+                </Button>
+              )}
+              <Button onClick={()=>handleReject(row.id)} variant="outline" color="red" size="xs" style={{borderRadius:"8px"}}>
+                Reject
+              </Button>
+            </>
+          )}
+          {canDelete && (
+            <Button onClick={()=>setDeleteId(row.id)} variant="outline" color="red" size="xs" style={{borderRadius:"8px"}}>
+              <Trash size={16} style={{margin:3}}/> Delete
+            </Button>
+          )}
         </div>
       </Table.Td>
     </Table.Tr>

@@ -36,11 +36,13 @@ function StaffAppointments() {
   const [viewData, setViewData] = useState(null);
   const [viewOpen, setViewOpen] = useState(false);
   const [form, setForm] = useState({
+    appointment_id: "",
     application: null,
     appointment_number: "",
     employee_code: "",
     designation: "",
     joining_date: "",
+    contract_end_date: "",
     probation_months: 12,
     pay_level: "",
     notes: "",
@@ -91,19 +93,22 @@ function StaffAppointments() {
     try {
       await axios.post(fetchStaffAppointmentsRoute, {
         ...form,
+        appointment_id: form.appointment_id ? Number(form.appointment_id) : undefined,
         application: Number(form.application),
       });
       notifications.show({
         title: "Created",
-        message: "Appointment created",
+        message: `Appointment created${form.appointment_id ? ` (ID: ${form.appointment_id})` : ""}`,
         color: "green",
       });
       setForm({
+        appointment_id: "",
         application: null,
         appointment_number: "",
         employee_code: "",
         designation: "",
         joining_date: "",
+        contract_end_date: "",
         probation_months: 12,
         pay_level: "",
         notes: "",
@@ -121,9 +126,10 @@ function StaffAppointments() {
   const existingApplicationIds = new Set(
     (appointments || []).map((item) => String(item.application)),
   );
-  const availableApplications = (applications || []).filter(
-    (app) => !existingApplicationIds.has(String(app.id)),
-  );
+  const availableApplications = (applications || []).filter((app) => {
+    const isApprovedByAdmin = String(app.status || "").toUpperCase() === "SELECTED";
+    return isApprovedByAdmin && !existingApplicationIds.has(String(app.id));
+  });
   const applicationOptions = availableApplications.map((app) => ({
     value: String(app.id),
     label: `${app.application_number} - ${app.applicant_name}`,
@@ -155,6 +161,16 @@ function StaffAppointments() {
             Create Staff Appointment
           </Text>
           <Grid gutter="md">
+            <Grid.Col span={6}>
+              <TextInput
+                label="Staff Appointment ID"
+                type="number"
+                value={form.appointment_id}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, appointment_id: e.target.value }))
+                }
+              />
+            </Grid.Col>
             <Grid.Col span={12}>
               <Select
                 label="Selected Application"
@@ -203,6 +219,16 @@ function StaffAppointments() {
                 value={form.joining_date}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, joining_date: e.target.value }))
+                }
+              />
+            </Grid.Col>
+            <Grid.Col span={6}>
+              <TextInput
+                label="Contract End Date"
+                type="date"
+                value={form.contract_end_date}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, contract_end_date: e.target.value }))
                 }
               />
             </Grid.Col>
@@ -319,6 +345,7 @@ function StaffAppointments() {
         titleField="appointment_number"
         title="Appointment Details"
         fields={[
+          { label: "Staff Appointment ID", key: "id" },
           { label: "Employee Code", key: "employee_code" },
           { label: "Applicant", key: "applicant_name" },
           { label: "Post", key: "post_title" },
@@ -326,6 +353,11 @@ function StaffAppointments() {
           {
             label: "Joining Date",
             key: "joining_date",
+            format: (v) => (v ? new Date(v).toLocaleDateString() : "-"),
+          },
+          {
+            label: "Contract End Date",
+            key: "contract_end_date",
             format: (v) => (v ? new Date(v).toLocaleDateString() : "-"),
           },
           {

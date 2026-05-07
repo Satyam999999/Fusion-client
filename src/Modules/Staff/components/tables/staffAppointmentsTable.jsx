@@ -36,6 +36,7 @@ function StaffAppointmentsTable({ appointments, onView, onRefresh }) {
         <Table highlightOnHover>
           <Table.Thead>
             <Table.Tr>
+              <Table.Th className={classes["header-cell"]}>ID</Table.Th>
               <Table.Th className={classes["header-cell"]}>
                 Appointment No.
               </Table.Th>
@@ -49,13 +50,16 @@ function StaffAppointmentsTable({ appointments, onView, onRefresh }) {
               <Table.Th className={classes["header-cell"]}>
                 Joining Date
               </Table.Th>
+              <Table.Th className={classes["header-cell"]}>
+                Contract End Date
+              </Table.Th>
               <Table.Th className={classes["header-cell"]}>Actions</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {(appointments || []).length === 0 ? (
               <Table.Tr>
-                <Table.Td colSpan={6}>
+                <Table.Td colSpan={8}>
                   <Text ta="center" c="dimmed" py="md">
                     No staff appointments found
                   </Text>
@@ -64,6 +68,7 @@ function StaffAppointmentsTable({ appointments, onView, onRefresh }) {
             ) : (
               (appointments || []).map((row) => (
                 <Table.Tr key={row.id}>
+                  <Table.Td className={classes["row-content"]}>{row.id}</Table.Td>
                   <Table.Td className={classes["row-content"]}>
                     {row.appointment_number}
                   </Table.Td>
@@ -79,6 +84,11 @@ function StaffAppointmentsTable({ appointments, onView, onRefresh }) {
                   <Table.Td className={classes["row-content"]}>
                     {row.joining_date
                       ? new Date(row.joining_date).toLocaleDateString()
+                      : "-"}
+                  </Table.Td>
+                  <Table.Td className={classes["row-content"]}>
+                    {row.contract_end_date
+                      ? new Date(row.contract_end_date).toLocaleDateString()
                       : "-"}
                   </Table.Td>
                   <Table.Td className={classes["row-content"]}>

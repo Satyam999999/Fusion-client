@@ -12,11 +12,13 @@ import {
   Title,
   Loader,
   Center,
+  Alert,
 } from "@mantine/core";
 import {
   CheckCircle,
   CaretCircleLeft,
   CaretCircleRight,
+  Warning,
 } from "@phosphor-icons/react";
 import axios from "axios";
 import { notifications } from "@mantine/notifications";
@@ -37,18 +39,13 @@ const CLIENT_TYPES = [
   { value: "OTHER", label: "Other" },
 ];
 
-const STATUS_OPTIONS = [
-  { value: "PROPOSED", label: "Proposed" },
-  { value: "NEGOTIATION", label: "Under Negotiation" },
-  { value: "APPROVED", label: "Approved" },
-  { value: "ONGOING", label: "Ongoing" },
-  { value: "COMPLETED", label: "Completed" },
-];
-
 function Consultancy() {
   const { can } = useRSPCRole();
   const [consultancies, setConsultancies] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [loadError, setLoadError] = useState(null);
   const [activeTab, setActiveTab] = useState("0");
   const [viewData, setViewData] = useState(null);
   const [viewOpen, setViewOpen] = useState(false);
@@ -58,19 +55,22 @@ function Consultancy() {
     client_type: "INDUSTRY",
     client_email: "",
     contract_amount: "",
+    faculty_share: "",
+    institute_share: "",
     start_date: "",
+    end_date: "",
     description: "",
-    status: "PROPOSED",
   });
   const tabsListRef = useRef(null);
 
   const loadConsultancies = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await axios.get(fetchConsultanciesRoute);
       setConsultancies(res.data.results || res.data);
     } catch (e) {
-      console.error(e);
+      setLoadError("Failed to load consultancies.");
     } finally {
       setLoading(false);
     }
@@ -80,6 +80,7 @@ function Consultancy() {
   }, []);
 
   const handleSubmit = async () => {
+    setFieldErrors({});
     if (!form.title || !form.client_name || !form.start_date) {
       notifications.show({
         title: "Validation",
@@ -88,21 +89,92 @@ function Consultancy() {
       });
       return;
     }
+
+    const contractAmount = Number(form.contract_amount || 0);
+    const instituteShare = Number(form.institute_share || 0);
+    const facultyShare = Number(form.faculty_share || 0);
+
+    if (!contractAmount || contractAmount < 50000) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        contract_amount: "Contract amount must be at least 50,000.",
+      }));
+      return;
+    }
+
+    if (instituteShare < contractAmount * 0.3) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        institute_share: "Institute share must be at least 30% of contract amount.",
+      }));
+      return;
+    }
+
+    if (facultyShare + instituteShare > contractAmount) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        faculty_share: "Faculty + Institute share cannot exceed contract amount.",
+      }));
+      return;
+    }
+
+    setSubmitting(true);
     try {
-      await axios.post(fetchConsultanciesRoute, form);
+      await axios.post(fetchConsultanciesRoute, {
+        ...form,
+        contract_amount: contractAmount,
+        faculty_share: facultyShare,
+        institute_share: instituteShare,
+        status: "SUBMITTED",
+      });
       notifications.show({
         title: "Created",
         message: "Consultancy project created",
         color: "green",
       });
-      loadConsultancies();
+      await loadConsultancies();
       setActiveTab("0");
+      setForm({
+        title: "",
+        client_name: "",
+        client_type: "INDUSTRY",
+        client_email: "",
+        contract_amount: "",
+        faculty_share: "",
+        institute_share: "",
+        start_date: "",
+        end_date: "",
+        description: "",
+      });
     } catch (e) {
+      const data = e?.response?.data;
+      if (data && typeof data === "object") {
+        const mappedErrors = {};
+        Object.entries(data).forEach(([k, v]) => {
+          if (k === "error" || k === "code" || k === "details") return;
+          mappedErrors[k] = Array.isArray(v) ? v.join(" ") : String(v);
+        });
+        if (Object.keys(mappedErrors).length > 0) {
+          setFieldErrors(mappedErrors);
+        }
+      }
+      const detailMessage =
+        data?.details && typeof data.details === "object"
+          ? Object.entries(data.details)
+              .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(" ") : String(value)}`)
+              .join("; ")
+          : "";
       notifications.show({
         title: "Error",
-        message: "Failed to create consultancy",
+        message:
+          detailMessage ||
+          e?.response?.data?.error ||
+          e?.response?.data?.detail ||
+          "Failed to create consultancy",
         color: "red",
       });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -113,6 +185,10 @@ function Consultancy() {
         <Center py="xl">
           <Loader size="lg" />
         </Center>
+      ) : loadError ? (
+        <Alert icon={<Warning size={18} />} color="red" title="Load Error" mt="md">
+          {loadError}
+        </Alert>
       ) : (
         <ConsultancyTable
           consultancies={consultancies}
@@ -182,6 +258,29 @@ function Consultancy() {
                 onChange={(e) =>
                   setForm((f) => ({ ...f, contract_amount: e.target.value }))
                 }
+                error={fieldErrors.contract_amount}
+              />
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, sm: 6 }}>
+              <TextInput
+                label="Faculty Share (₹)"
+                type="number"
+                value={form.faculty_share}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, faculty_share: e.target.value }))
+                }
+                error={fieldErrors.faculty_share}
+              />
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, sm: 6 }}>
+              <TextInput
+                label="Institute Share (₹)"
+                type="number"
+                value={form.institute_share}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, institute_share: e.target.value }))
+                }
+                error={fieldErrors.institute_share}
               />
             </Grid.Col>
             <Grid.Col span={{ base: 12, sm: 6 }}>
@@ -193,14 +292,18 @@ function Consultancy() {
                 onChange={(e) =>
                   setForm((f) => ({ ...f, start_date: e.target.value }))
                 }
+                error={fieldErrors.start_date}
               />
             </Grid.Col>
             <Grid.Col span={{ base: 12, sm: 6 }}>
-              <Select
-                label="Status"
-                data={STATUS_OPTIONS}
-                value={form.status}
-                onChange={(v) => setForm((f) => ({ ...f, status: v }))}
+              <TextInput
+                label="End Date"
+                type="date"
+                value={form.end_date}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, end_date: e.target.value }))
+                }
+                error={fieldErrors.end_date}
               />
             </Grid.Col>
             <Grid.Col span={{ base: 12 }}>
@@ -220,6 +323,7 @@ function Consultancy() {
               style={{ borderRadius: 8 }}
               onClick={handleSubmit}
               leftSection={<CheckCircle size={18} />}
+              loading={submitting}
             >
               Create Consultancy
             </Button>

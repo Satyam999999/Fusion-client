@@ -25,6 +25,7 @@ import DetailViewModal from "../RSPC/components/modals/detailViewModal";
 import RecruitmentPostsTable from "./components/tables/recruitmentPostsTable";
 import FormAppendixPanel from "../../components/FormAppendixPanel";
 import { fetchRecruitmentPostsRoute } from "../../routes/RSPCRoutes/index";
+import { useRSPCRole } from "../RSPC/hooks/useRSPCRole";
 
 const EMPLOYMENT_TYPES = [
   { value: "TEACHING", label: "Teaching" },
@@ -40,6 +41,8 @@ const STATUS_OPTIONS = [
 ];
 
 function StaffRecruitment() {
+  const { role } = useRSPCRole();
+  const isRspcAdmin = role === "RSPC_ADMIN";
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("0");
@@ -78,6 +81,15 @@ function StaffRecruitment() {
   }, []);
 
   const handleSubmit = async () => {
+    if (!isRspcAdmin) {
+      notifications.show({
+        title: "Forbidden",
+        message: "Only RSPC Admin can create recruitment posts.",
+        color: "red",
+      });
+      return;
+    }
+
     if (!form.post_code || !form.title || !form.application_deadline) {
       notifications.show({
         title: "Validation",
@@ -133,10 +145,11 @@ function StaffRecruitment() {
         />
       ),
     },
-    {
-      title: "Create Post",
-      component: (
-        <Paper className={formClasses.formContainer}>
+    ...(isRspcAdmin
+      ? [{
+          title: "Create Post",
+          component: (
+            <Paper className={formClasses.formContainer}>
           <Text fw={700} size="lg" className={formClasses.formTitle}>
             Create Staff Recruitment Post
           </Text>
@@ -240,9 +253,10 @@ function StaffRecruitment() {
               Create Recruitment Post
             </Button>
           </div>
-        </Paper>
-      ),
-    },
+            </Paper>
+          ),
+        }]
+      : []),
     {
       title: "Form Appendix",
       component: (

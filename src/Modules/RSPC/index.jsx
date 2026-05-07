@@ -1,27 +1,31 @@
+import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import PropTypes from "prop-types";
 
-import ResearchProjects from "./researchProjects";
-import RequestForms from "./requestForms";
-import Publications from "./publications";
-import Patents from "./patents";
-import Consultancy from "./consultancy";
-import Scholars from "./scholars";
-import WorkflowTools from "./workflowTools";
+import RSPCPageLoader from "./components/RSPCPageLoader";
 import { useRSPCRole } from "./hooks/useRSPCRole";
+import "./styles/uiTokens.css";
 
-// Roles allowed to access WorkflowTools — HOD removed (vet action is inline on project row)
-const WORKFLOW_ROLES = new Set(["RSPC_ADMIN", "DEAN_RSPC", "DIRECTOR"]);
+const ResearchProjects = lazy(() => import("./researchProjects"));
+const RequestForms = lazy(() => import("./requestForms"));
+const Publications = lazy(() => import("./publications"));
+const Patents = lazy(() => import("./patents"));
+const Consultancy = lazy(() => import("./consultancy"));
+const Scholars = lazy(() => import("./scholars"));
+const ManagementConsole = lazy(() => import("./managementConsole"));
 
-function RequireWorkflowRole({ children }) {
+// Roles allowed to access ManagementConsole — HOD removed (vet action is inline on project row)
+const MANAGEMENT_ROLES = new Set(["RSPC_ADMIN", "DEAN_RSPC", "DIRECTOR"]);
+
+function RequireManagementRole({ children }) {
   const { role } = useRSPCRole();
-  if (!WORKFLOW_ROLES.has(role)) {
+  if (!MANAGEMENT_ROLES.has(role)) {
     return <Navigate to="/research" replace />;
   }
   return children;
 }
 
-RequireWorkflowRole.propTypes = {
+RequireManagementRole.propTypes = {
   children: PropTypes.node.isRequired,
 };
 
@@ -40,66 +44,68 @@ RequireRouteAccess.propTypes = {
 
 export default function RSPCRoutes() {
   return (
-    <Routes>
-      <Route
-        index
-        element={
-          <RequireRouteAccess route="/research">
-            <ResearchProjects />
-          </RequireRouteAccess>
-        }
-      />
-      <Route
-        path="forms"
-        element={
-          <RequireRouteAccess route="/research/forms">
-            <RequestForms />
-          </RequireRouteAccess>
-        }
-      />
-      <Route
-        path="publications"
-        element={
-          <RequireRouteAccess route="/research/publications">
-            <Publications />
-          </RequireRouteAccess>
-        }
-      />
-      <Route
-        path="patents"
-        element={
-          <RequireRouteAccess route="/research/patents">
-            <Patents />
-          </RequireRouteAccess>
-        }
-      />
-      <Route
-        path="consultancy"
-        element={
-          <RequireRouteAccess route="/research/consultancy">
-            <Consultancy />
-          </RequireRouteAccess>
-        }
-      />
-      <Route
-        path="scholars"
-        element={
-          <RequireRouteAccess route="/research/scholars">
-            <Scholars />
-          </RequireRouteAccess>
-        }
-      />
-      <Route
-        path="workflow-tools"
-        element={
-          <RequireRouteAccess route="/research/workflow-tools">
-            <RequireWorkflowRole>
-              <WorkflowTools />
-            </RequireWorkflowRole>
-          </RequireRouteAccess>
-        }
-      />
-      <Route path="*" element={<Navigate to="/research" replace />} />
-    </Routes>
+    <Suspense fallback={<RSPCPageLoader />}>
+      <Routes>
+        <Route
+          index
+          element={
+            <RequireRouteAccess route="/research">
+              <ResearchProjects />
+            </RequireRouteAccess>
+          }
+        />
+        <Route
+          path="forms"
+          element={
+            <RequireRouteAccess route="/research/forms">
+              <RequestForms />
+            </RequireRouteAccess>
+          }
+        />
+        <Route
+          path="publications"
+          element={
+            <RequireRouteAccess route="/research/publications">
+              <Publications />
+            </RequireRouteAccess>
+          }
+        />
+        <Route
+          path="patents"
+          element={
+            <RequireRouteAccess route="/research/patents">
+              <Patents />
+            </RequireRouteAccess>
+          }
+        />
+        <Route
+          path="consultancy"
+          element={
+            <RequireRouteAccess route="/research/consultancy">
+              <Consultancy />
+            </RequireRouteAccess>
+          }
+        />
+        <Route
+          path="scholars"
+          element={
+            <RequireRouteAccess route="/research/scholars">
+              <Scholars />
+            </RequireRouteAccess>
+          }
+        />
+        <Route
+          path="management-console"
+          element={
+            <RequireRouteAccess route="/research/management-console">
+              <RequireManagementRole>
+                <ManagementConsole />
+              </RequireManagementRole>
+            </RequireRouteAccess>
+          }
+        />
+        <Route path="*" element={<Navigate to="/research" replace />} />
+      </Routes>
+    </Suspense>
   );
 }

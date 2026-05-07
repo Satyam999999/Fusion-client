@@ -47,6 +47,11 @@ function SidebarContent({ isCollapsed, toggleSidebar }) {
   const MODULE_KEY_ALIASES = {
     rspc: ["research_procedures", "research"],
   };
+  const hiddenSidebarLabels = new Set([
+    "RSPC Forms",
+    "RSPC Publications",
+    "RSPC Patents",
+  ]);
 
   const Modules = [
     {
@@ -158,10 +163,10 @@ function SidebarContent({ isCollapsed, toggleSidebar }) {
       url: "/research/consultancy",
     },
     {
-      label: "RSPC Workflow",
+      label: "RSPC Management Console",
       id: "rspc",
       icon: <ResearchIcon size={18} />,
-      url: "/research/workflow-tools",
+      url: "/research/management-console",
     },
     {
       label: "RSPC Staff Recruitment",
@@ -181,12 +186,7 @@ function SidebarContent({ isCollapsed, toggleSidebar }) {
       icon: <ResearchIcon size={18} />,
       url: "/staff/appointments",
     },
-    {
-      label: "RSPC Governance",
-      id: "rspc",
-      icon: <ResearchIcon size={18} />,
-      url: "/governance",
-    },
+
     {
       label: "Purchase and Store",
       id: "purchase_and_store",
@@ -282,7 +282,10 @@ function SidebarContent({ isCollapsed, toggleSidebar }) {
     };
 
     const filterModules = Modules.filter(
-      (module) => hasModuleAccess(module.id) && isRspcRouteAllowed(module),
+      (module) =>
+        hasModuleAccess(module.id) &&
+        isRspcRouteAllowed(module) &&
+        !hiddenSidebarLabels.has(module.label),
     );
     setFilteredModules(filterModules);
   }, [accessibleModules, visibleRoutes]);

@@ -57,15 +57,20 @@ function ValidateAuth() {
       if (selectedRole) dispatch(setRole(selectedRole));
 
       const normalizedRole = String(selectedRole || "").toLowerCase();
+      const compactRole = normalizedRole.replace(/[\s_-]+/g, "");
       let defaultRspcRole = "FACULTY";
       if (
         normalizedRole.includes("hod") ||
-        normalizedRole === "department_head"
+        normalizedRole === "department_head" ||
+        normalizedRole === "department head" ||
+        compactRole === "departmenthead"
       )
         defaultRspcRole = "DEPARTMENT_HEAD";
       else if (
         normalizedRole === "rspc_admin" ||
-        normalizedRole === "sectionhead_rspc"
+        normalizedRole === "sectionhead_rspc" ||
+        normalizedRole === "section head rspc" ||
+        compactRole === "sectionheadrspc"
       )
         defaultRspcRole = "RSPC_ADMIN";
       else if (

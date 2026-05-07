@@ -109,6 +109,9 @@ function RequestForms() {
     period_from: "",
     period_to: "",
     summary: "",
+    achievements: "",
+    challenges: "",
+    next_steps: "",
     report_file: null,
   });
   const tabsListRef = useRef(null);
@@ -242,11 +245,15 @@ function RequestForms() {
       !repForm.period_from ||
       !repForm.period_to ||
       !repForm.summary ||
+      !repForm.achievements ||
+      !repForm.challenges ||
+      !repForm.next_steps ||
       !repForm.report_file
     ) {
       notifications.show({
         title: "Validation",
-        message: "Period, summary, and report file are required",
+        message:
+          "Period dates, summary, achievements, challenges, next steps, and report file are required",
         color: "red",
       });
       return;
@@ -258,6 +265,10 @@ function RequestForms() {
       formData.append("period_from", repForm.period_from);
       formData.append("period_to", repForm.period_to);
       formData.append("summary", repForm.summary);
+      formData.append("achievements", repForm.achievements);
+      formData.append("challenges", repForm.challenges);
+      formData.append("next_steps", repForm.next_steps);
+      formData.append("submitted_date", new Date().toISOString().slice(0, 10));
       formData.append("report_file", repForm.report_file);
       await axios.post(fetchReportsRoute, formData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -272,6 +283,9 @@ function RequestForms() {
         period_from: "",
         period_to: "",
         summary: "",
+        achievements: "",
+        challenges: "",
+        next_steps: "",
         report_file: null,
       });
       const r = await axios.get(fetchReportsRoute, {
@@ -279,9 +293,16 @@ function RequestForms() {
       });
       setReports(r.data.results || r.data);
     } catch (e) {
+      const data = e?.response?.data;
+      const detailMessage =
+        data && typeof data === "object"
+          ? Object.entries(data)
+              .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(" ") : String(value)}`)
+              .join("; ")
+          : "";
       notifications.show({
         title: "Error",
-        message: "Failed to submit report",
+        message: detailMessage || data?.error || data?.detail || "Failed to submit report",
         color: "red",
       });
     }
@@ -404,7 +425,12 @@ function RequestForms() {
         <Text fw={700} size="lg" className={formClasses.formTitle}>
           Project Expenditures
         </Text>
-        <ExpenditureTable expenditures={expenditures} onRefresh={reload} />
+        <ExpenditureTable
+          expenditures={expenditures}
+          onRefresh={reload}
+          projects={[data]}
+          fixedProjectId={data.id}
+        />
         {can("add_expenditure") && (
           <>
             <Divider
@@ -655,6 +681,39 @@ function RequestForms() {
                 value={repForm.summary}
                 onChange={(e) =>
                   setRepForm((f) => ({ ...f, summary: e.target.value }))
+                }
+                required
+              />
+            </Grid.Col>
+            <Grid.Col span={12}>
+              <Textarea
+                label="Achievements"
+                minRows={3}
+                value={repForm.achievements}
+                onChange={(e) =>
+                  setRepForm((f) => ({ ...f, achievements: e.target.value }))
+                }
+                required
+              />
+            </Grid.Col>
+            <Grid.Col span={12}>
+              <Textarea
+                label="Challenges"
+                minRows={3}
+                value={repForm.challenges}
+                onChange={(e) =>
+                  setRepForm((f) => ({ ...f, challenges: e.target.value }))
+                }
+                required
+              />
+            </Grid.Col>
+            <Grid.Col span={12}>
+              <Textarea
+                label="Next Steps"
+                minRows={3}
+                value={repForm.next_steps}
+                onChange={(e) =>
+                  setRepForm((f) => ({ ...f, next_steps: e.target.value }))
                 }
                 required
               />

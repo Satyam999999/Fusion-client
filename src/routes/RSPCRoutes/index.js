@@ -8,6 +8,7 @@ export const fetchProjectsRoute = `${BASE}/projects/`;
 export const fetchPublicationsRoute = `${BASE}/publications/`;
 export const fetchPatentsRoute = `${BASE}/patents/`;
 export const fetchScholarsRoute = `${BASE}/scholars/`;
+export const fetchPhdStudentOptionsRoute = `${BASE}/students/phd-options/`;
 export const fetchConsultanciesRoute = `${BASE}/consultancies/`;
 export const fetchExpendituresRoute = `${BASE}/expenditures/`;
 export const fetchMilestonesRoute = `${BASE}/milestones/`;
@@ -53,6 +54,7 @@ export const approveExpenditureRoute = (id) =>
   `${BASE}/expenditures/${id}/approve/`;
 export const rejectExpenditureRoute = (id) =>
   `${BASE}/expenditures/${id}/reject/`;
+export const stipendDisbursementsRoute = `${BASE}/expenditures/stipend_disbursements/`;
 export const verifyPublicationRoute = (id) =>
   `${BASE}/publications/${id}/verify/`;
 export const updatePatentStatusRoute = (id) =>
